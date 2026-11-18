@@ -70,6 +70,8 @@ canvas{width:min(78vw,340px);height:min(70vw,300px)}
   Para abrir apps di, por ejemplo, «abre WhatsApp»; para las notificaciones, «léeme mis notificaciones».</p>
   <p class="nota">La app se conecta a Jarvis por NetBird: deja NetBird encendido en el teléfono y Jarvis abierto en el PC.
   Si estás en el WiFi de tu casa también puedes usar https://192.168.2.101:8766.</p>
+  <button class="boton gris" id="buscarVersion">Buscar actualización</button>
+  <p class="nota" id="versionApp"></p>
   <button class="boton gris" id="cerrarAjustes">Listo</button>
 </div></div>
 
@@ -291,6 +293,12 @@ async function revisar(){
 }
 revisar();setInterval(revisar,15000);
 revisarPermisos();enviarApps();
+// ------------------------------------------------------------ actualizarse sola (cada vez que se abre y cada 6 horas)
+window.avisoNativo=t=>anadir('aviso',t);
+$('versionApp').textContent='Versión instalada: '+JarvisNativo.version();
+function buscarVersion(avisar){if(clave.value)JarvisNativo.revisarActualizacion(servidor.value.trim(),clave.value,avisar);}
+$('buscarVersion').onclick=()=>buscarVersion(true);
+setTimeout(()=>buscarVersion(false),3000);setInterval(()=>buscarVersion(false),6*3600*1000);
 
 // ------------------------------------------------------------ la esfera (versión liviana de la del PC)
 const lienzo=$('esfera'),g=lienzo.getContext('2d');
