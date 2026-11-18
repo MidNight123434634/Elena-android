@@ -1,7 +1,10 @@
 name: Armar la APK de Jarvis
 on:
   push:
+    branches: [main]
   workflow_dispatch:
+permissions:
+  contents: write
 jobs:
   apk:
     runs-on: ubuntu-latest
@@ -15,7 +18,26 @@ jobs:
         with:
           gradle-version: "8.9"
       - run: gradle :app:assembleDebug --no-daemon
+      - run: cp app/build/outputs/apk/debug/app-debug.apk Jarvis.apk
       - uses: actions/upload-artifact@v4
         with:
           name: Jarvis-apk
-          path: app/build/outputs/apk/debug/app-debug.apk
+          path: Jarvis.apk
+      # La APK queda también en la rama "apk" del repositorio
+      - name: Guardar la APK en la rama apk
+        run: |
+          mkdir /tmp/salida && cp Jarvis.apk /tmp/salida/
+          cd /tmp/salida
+          git init -q -b apk
+          git config user.name "github-actions"
+          git config user.email "github-actions@users.noreply.github.com"
+          git add Jarvis.apk
+          git commit -q -m "APK de ${GITHUB_SHA::7}"
+          git push -f "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}" apk
+      # Y como versión descargable en la página del repositorio (pestaña Releases)
+      - name: Publicar la versión
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete ultima --yes --cleanup-tag || true
+          gh release create ultima Jarvis.apk --title "Jarvis para Android" --notes "Última versión de la app de Jarvis. Descarga Jarvis.apk en el teléfono e instálala."
