@@ -64,6 +64,10 @@ canvas{width:min(78vw,340px);height:min(70vw,300px)}
   <input id="clave" type="password" autocomplete="current-password">
   <div class="fila"><span>Que me responda con voz</span><input id="voz" type="checkbox"></div>
   <div class="fila"><span>Dejar de escuchar solo cuando me callo</span><input id="auto" type="checkbox"></div>
+  <button class="boton gris" id="permisoAvisos">Permitir leer notificaciones</button>
+  <div class="fila"><span>Leer en voz alta las notificaciones nuevas</span><input id="leerSolo" type="checkbox"></div>
+  <p class="nota">Las notificaciones se quedan en el teléfono: Jarvis las lee aquí y no las manda al PC.
+  Para abrir apps di, por ejemplo, «abre WhatsApp»; para las notificaciones, «léeme mis notificaciones».</p>
   <p class="nota">La app se conecta a Jarvis por NetBird: deja NetBird encendido en el teléfono y Jarvis abierto en el PC.
   Si estás en el WiFi de tu casa también puedes usar https://192.168.2.101:8766.</p>
   <button class="boton gris" id="cerrarAjustes">Listo</button>
@@ -84,6 +88,35 @@ auto.addEventListener('change',()=>localStorage.setItem('jarvis_auto',auto.check
 $('abrirAjustes').onclick=()=>$('ajustes').classList.add('abierto');
 $('cerrarAjustes').onclick=()=>$('ajustes').classList.remove('abierto');
 if(!clave.value)$('ajustes').classList.add('abierto');
+
+// ------------------------------------------------------------ cosas del teléfono (abrir apps, notificaciones)
+const leerSolo=$('leerSolo');
+function revisarPermisos(){
+  const ok=JarvisNativo.puedeLeerNotificaciones();
+  $('permisoAvisos').textContent=ok?'Notificaciones: permitido ✓':'Permitir leer notificaciones';
+  leerSolo.disabled=!ok;leerSolo.checked=ok&&JarvisNativo.leeNotificacionesSolo();
+}
+$('permisoAvisos').onclick=()=>JarvisNativo.pedirPermisoNotificaciones();
+leerSolo.addEventListener('change',()=>JarvisNativo.leerNotificacionesSolo(leerSolo.checked));
+document.addEventListener('visibilitychange',()=>{if(!document.hidden){revisarPermisos();enviarApps();}});
+function hablarTelefono(texto){
+  if(!voz.checked)return;
+  poner('hablando','Jarvis está hablando');JarvisNativo.hablar(texto);
+  setTimeout(()=>{if(estado==='hablando')poner('esperando','Toca el micrófono y habla');},Math.min(15000,1200+texto.length*70));
+}
+function manejarTelefono(accion){
+  let r='';
+  if(accion.accion==='abrir')r=JarvisNativo.abrirApp(accion.app||'');
+  else if(accion.accion==='notificaciones')r=JarvisNativo.notificaciones(accion.app||'');
+  if(r){anadir('jarvis',r);hablarTelefono(r);}
+}
+let appsEnviadas=0;
+async function enviarApps(){   // Jarvis en el PC necesita saber qué apps hay para reconocer «abre ...»
+  if(Date.now()-appsEnviadas<60000)return;
+  appsEnviadas=Date.now();
+  try{await nativo('/telefono/apps','application/json',aBase64(new TextEncoder().encode(JSON.stringify({apps:JSON.parse(JarvisNativo.appsInstaladas())}))));}
+  catch(e){appsEnviadas=0;}
+}
 
 // ------------------------------------------------------------ mensajes
 function anadir(quien,msg,html){
@@ -171,8 +204,9 @@ async function enviar(){
   poner('pensando','Pensando…');
   try{
     const d=await pedir('/preguntar',JSON.stringify({texto:t}),'application/json');
-    anadir('jarvis',d.respuesta||d.error||'Sin respuesta');
     poner('esperando','Toca el micrófono y habla');
+    if(d.telefono){manejarTelefono(d.telefono);return;}
+    anadir('jarvis',d.respuesta||d.error||'Sin respuesta');
     if(d.respuesta)decir(d.respuesta,d.audios);
   }catch(e){anadir('jarvis','No pude conectar con Jarvis. ¿Está abierto en el PC?');poner('error','Sin conexión');}
 }
@@ -241,9 +275,9 @@ async function mandarAudio(blob){
   try{
     const d=await pedir('/oir',blob,'audio/wav');
     if(d.oido)anadir('tu','🎤 '+d.oido);
-    anadir('jarvis',d.respuesta||d.error||'Sin respuesta');
     poner('esperando','Toca el micrófono y habla');
-    if(d.respuesta)decir(d.respuesta,d.audios);
+    if(d.telefono){manejarTelefono(d.telefono);}
+    else{anadir('jarvis',d.respuesta||d.error||'Sin respuesta');if(d.respuesta)decir(d.respuesta,d.audios);}
   }catch(e){anadir('jarvis','No pude conectar con Jarvis. ¿Está abierto en el PC?');poner('error','Sin conexión');}
   boton.disabled=false;
 }
@@ -256,6 +290,7 @@ async function revisar(){
   punto.className=d.ok?'ok':'mal';
 }
 revisar();setInterval(revisar,15000);
+revisarPermisos();enviarApps();
 
 // ------------------------------------------------------------ la esfera (versión liviana de la del PC)
 const lienzo=$('esfera'),g=lienzo.getContext('2d');
