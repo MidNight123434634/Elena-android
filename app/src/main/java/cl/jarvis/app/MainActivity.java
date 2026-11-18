@@ -8,10 +8,13 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.content.pm.ResolveInfo;
+import android.app.role.RoleManager;
+import android.telecom.TelecomManager;
 import android.provider.Settings;
 import android.speech.tts.TextToSpeech;
 import android.graphics.Color;
 import android.net.Uri;
+import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
@@ -217,6 +220,68 @@ public class MainActivity extends Activity {
 
     /** Lo que la pantalla puede pedirle a la parte nativa. */
     private class Puente {
+
+        // ------------------------------------------------------------------ llamadas
+        @JavascriptInterface
+        public boolean filtroLlamadasActivo() {
+            if (Build.VERSION.SDK_INT < 29) return false;
+            RoleManager roles = getSystemService(RoleManager.class);
+            return roles != null && roles.isRoleHeld(RoleManager.ROLE_CALL_SCREENING);
+        }
+
+        @JavascriptInterface
+        public String activarFiltroLlamadas() {
+            if (Build.VERSION.SDK_INT < 29) return "El filtro de llamadas necesita Android 10 o más nuevo.";
+            principal.post(() -> {
+                RoleManager roles = getSystemService(RoleManager.class);
+                if (roles != null) startActivityForResult(roles.createRequestRoleIntent(RoleManager.ROLE_CALL_SCREENING), 21);
+                java.util.List<String> faltan = new ArrayList<>();
+                if (checkSelfPermission(Manifest.permission.READ_CONTACTS) != PackageManager.PERMISSION_GRANTED)
+                    faltan.add(Manifest.permission.READ_CONTACTS);
+                if (checkSelfPermission(Manifest.permission.ANSWER_PHONE_CALLS) != PackageManager.PERMISSION_GRANTED)
+                    faltan.add(Manifest.permission.ANSWER_PHONE_CALLS);
+                if (!faltan.isEmpty()) requestPermissions(faltan.toArray(new String[0]), 22);
+            });
+            return "";
+        }
+
+        @JavascriptInterface
+        public boolean ajusteLlamadas(String nombre) {
+            boolean porDefecto = nombre.equals(Llamadas.BLOQUEAR_809) || nombre.equals(Llamadas.ANUNCIAR);
+            return Llamadas.preferencias(MainActivity.this).getBoolean(nombre, porDefecto);
+        }
+
+        @JavascriptInterface
+        public void cambiarAjusteLlamadas(String nombre, boolean valor) {
+            if (!nombre.startsWith("llamadas_")) return;
+            Llamadas.preferencias(MainActivity.this).edit().putBoolean(nombre, valor).apply();
+        }
+
+        @JavascriptInterface
+        public String llamada(String accion) {
+            TelecomManager telefono = getSystemService(TelecomManager.class);
+            try {
+                switch (accion) {
+                    case "contestar":
+                        if (checkSelfPermission(Manifest.permission.ANSWER_PHONE_CALLS) != PackageManager.PERMISSION_GRANTED)
+                            return "Para contestar llamadas necesito el permiso de llamadas: actívalo en ⚙ › Filtro de llamadas.";
+                        telefono.acceptRingingCall();
+                        return "Contestando.";
+                    case "colgar":
+                        if (checkSelfPermission(Manifest.permission.ANSWER_PHONE_CALLS) != PackageManager.PERMISSION_GRANTED)
+                            return "Para colgar llamadas necesito el permiso de llamadas: actívalo en ⚙ › Filtro de llamadas.";
+                        return telefono.endCall() ? "Colgué la llamada." : "No hay ninguna llamada que colgar.";
+                    case "bloquear":
+                        return Llamadas.bloquearUltima(MainActivity.this);
+                    default:
+                        return Llamadas.resumen(MainActivity.this);
+                }
+            } catch (SecurityException e) {
+                return "Android no me dejó hacerlo: falta un permiso de llamadas.";
+            } catch (Exception e) {
+                return "No pude hacerlo en este teléfono.";
+            }
+        }
 
         @JavascriptInterface
         public void revisarActualizacion(final String servidor, final String clave, final boolean avisarSiNoHay) {

@@ -70,6 +70,14 @@ canvas{width:min(78vw,340px);height:min(70vw,300px)}
   Para abrir apps di, por ejemplo, «abre WhatsApp»; para las notificaciones, «léeme mis notificaciones».</p>
   <p class="nota">La app se conecta a Jarvis por NetBird: deja NetBird encendido en el teléfono y Jarvis abierto en el PC.
   Si estás en el WiFi de tu casa también puedes usar https://192.168.2.101:8766.</p>
+  <h2 style="margin-top:1.2rem">Llamadas</h2>
+  <button class="boton gris" id="filtroLlamadas">Activar filtro de llamadas spam</button>
+  <div class="fila"><span>Bloquear el prefijo 809 (telemarketing)</span><input id="ll809" type="checkbox"></div>
+  <div class="fila"><span>Bloquear números ocultos</span><input id="llOcultos" type="checkbox"></div>
+  <div class="fila"><span>Bloquear todo número que no esté en mis contactos</span><input id="llDesconocidos" type="checkbox"></div>
+  <div class="fila"><span>Decir en voz alta quién me llama</span><input id="llAnunciar" type="checkbox"></div>
+  <p class="nota">Di «bloquea esa llamada» para bloquear el último número que te llamó, «¿qué llamadas bloqueaste?» para ver
+  el registro, y «contesta» o «cuelga» durante una llamada. Todo se hace en el teléfono, sin pasar por el PC.</p>
   <button class="boton gris" id="buscarVersion">Buscar actualización</button>
   <p class="nota" id="versionApp"></p>
   <button class="boton gris" id="cerrarAjustes">Listo</button>
@@ -106,9 +114,19 @@ function hablarTelefono(texto){
   poner('hablando','Jarvis está hablando');JarvisNativo.hablar(texto);
   setTimeout(()=>{if(estado==='hablando')poner('esperando','Toca el micrófono y habla');},Math.min(15000,1200+texto.length*70));
 }
+const AJUSTES_LLAMADAS={ll809:'llamadas_bloquear_809',llOcultos:'llamadas_bloquear_ocultos',llDesconocidos:'llamadas_bloquear_desconocidos',llAnunciar:'llamadas_anunciar'};
+for(const [id,nombre] of Object.entries(AJUSTES_LLAMADAS)){
+  $(id).checked=JarvisNativo.ajusteLlamadas(nombre);
+  $(id).addEventListener('change',()=>JarvisNativo.cambiarAjusteLlamadas(nombre,$(id).checked));
+}
+function revisarFiltro(){$('filtroLlamadas').textContent=JarvisNativo.filtroLlamadasActivo()?'Filtro de llamadas: activo ✓':'Activar filtro de llamadas spam';}
+$('filtroLlamadas').onclick=()=>{const r=JarvisNativo.activarFiltroLlamadas();if(r)anadir('aviso',r);};
+document.addEventListener('visibilitychange',()=>{if(!document.hidden)revisarFiltro();});
+revisarFiltro();
 function manejarTelefono(accion){
   let r='';
-  if(accion.accion==='abrir')r=JarvisNativo.abrirApp(accion.app||'');
+  if(['contestar','colgar','bloquear','llamadas'].includes(accion.accion))r=JarvisNativo.llamada(accion.accion);
+  else if(accion.accion==='abrir')r=JarvisNativo.abrirApp(accion.app||'');
   else if(accion.accion==='notificaciones')r=JarvisNativo.notificaciones(accion.app||'');
   if(r){anadir('jarvis',r);hablarTelefono(r);}
 }
