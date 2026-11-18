@@ -10,8 +10,23 @@ android {
         applicationId "cl.jarvis.app"
         minSdk 24
         targetSdk 34
-        versionCode 1
-        versionName "1.0"
+        // El número de versión lo pone GitHub en cada armado: así la app sabe cuándo hay una nueva
+        versionCode((project.findProperty("versionCode") ?: "1").toString().toInteger())
+        versionName "1." + (project.findProperty("versionCode") ?: "1")
+    }
+
+    // Siempre la misma firma: Android solo deja actualizar una app si la versión nueva viene firmada igual
+    signingConfigs {
+        jarvis {
+            storeFile file("jarvis.keystore")
+            storePassword "abwQr3KdZ-vFkuV4u8kyHkvI"
+            keyAlias "jarvis"
+            keyPassword "abwQr3KdZ-vFkuV4u8kyHkvI"
+        }
+    }
+    buildTypes {
+        debug { signingConfig signingConfigs.jarvis }
+        release { signingConfig signingConfigs.jarvis }
     }
 
     compileOptions {

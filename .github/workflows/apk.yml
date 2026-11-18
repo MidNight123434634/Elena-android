@@ -17,7 +17,7 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: "8.9"
-      - run: gradle :app:assembleDebug --no-daemon
+      - run: gradle :app:assembleDebug --no-daemon -PversionCode=${{ github.run_number }}
       - run: cp app/build/outputs/apk/debug/app-debug.apk Jarvis.apk
       - uses: actions/upload-artifact@v4
         with:
@@ -27,11 +27,12 @@ jobs:
       - name: Guardar la APK en la rama apk
         run: |
           mkdir /tmp/salida && cp Jarvis.apk /tmp/salida/
+          echo '{"version": ${{ github.run_number }}}' > /tmp/salida/Jarvis_version.json
           cd /tmp/salida
           git init -q -b apk
           git config user.name "github-actions"
           git config user.email "github-actions@users.noreply.github.com"
-          git add Jarvis.apk
+          git add Jarvis.apk Jarvis_version.json
           git commit -q -m "APK de ${GITHUB_SHA::7}"
           git push -f "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}" apk
       # Y como versión descargable en la página del repositorio (pestaña Releases)

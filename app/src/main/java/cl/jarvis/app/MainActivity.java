@@ -61,6 +61,7 @@ public class MainActivity extends Activity {
     private final Handler principal = new Handler(Looper.getMainLooper());
     private TextToSpeech voz;
     private boolean vozLista = false;
+    private Actualizador actualizador;
 
     @SuppressLint({"SetJavaScriptEnabled", "AddJavascriptInterface"})
     @Override
@@ -121,6 +122,12 @@ public class MainActivity extends Activity {
             if (vozLista) voz.setLanguage(new Locale("es", "ES"));
         });
 
+        actualizador = new Actualizador(this, texto -> principal.post(() -> web.evaluateJavascript(
+                "window.avisoNativo&&window.avisoNativo(" + JSONObject.quote(texto) + ")", null)));
+        if (getIntent() != null && Actualizador.ACCION_RESULTADO.equals(getIntent().getAction())) {
+            actualizador.resultado(getIntent());
+        }
+
         web.addJavascriptInterface(new Puente(), "JarvisNativo");
         web.loadUrl(INICIO);
     }
@@ -135,6 +142,18 @@ public class MainActivity extends Activity {
             pedidoPendiente.deny();
         }
         pedidoPendiente = null;
+    }
+
+    @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        if (Actualizador.ACCION_RESULTADO.equals(intent.getAction())) actualizador.resultado(intent);
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        if (actualizador != null) actualizador.continuarSiEspera();
     }
 
     @Override
@@ -198,6 +217,16 @@ public class MainActivity extends Activity {
 
     /** Lo que la pantalla puede pedirle a la parte nativa. */
     private class Puente {
+
+        @JavascriptInterface
+        public void revisarActualizacion(final String servidor, final String clave, final boolean avisarSiNoHay) {
+            hilos.execute(() -> actualizador.revisar(servidor, clave, avisarSiNoHay));
+        }
+
+        @JavascriptInterface
+        public String version() {
+            return String.valueOf(Actualizador.versionInstalada(MainActivity.this));
+        }
 
         @JavascriptInterface
         public String appsInstaladas() {
