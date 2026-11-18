@@ -17,6 +17,14 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: "8.9"
+      # Modelo pequeño de reconocimiento de voz (para la palabra «Jarvis»), dentro de la app
+      - name: Descargar el modelo de voz
+        run: |
+          curl -sSL -o modelo.zip https://alphacephei.com/vosk/models/vosk-model-small-en-us-0.15.zip
+          unzip -q modelo.zip
+          rm -rf app/src/main/assets/model-en-us
+          mv vosk-model-small-en-us-0.15 app/src/main/assets/model-en-us
+          echo "vosk-small-en-us-0.15" > app/src/main/assets/model-en-us/uuid
       - run: gradle :app:assembleDebug --no-daemon -PversionCode=${{ github.run_number }}
       - run: cp app/build/outputs/apk/debug/app-debug.apk Jarvis.apk
       - uses: actions/upload-artifact@v4

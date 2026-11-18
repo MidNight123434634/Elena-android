@@ -131,6 +131,13 @@ public class MainActivity extends Activity {
             actualizador.resultado(getIntent());
         }
 
+        Escucha.oyente = (quien, texto) -> principal.post(() -> web.evaluateJavascript(
+                "window.eventoEscucha&&window.eventoEscucha(" + JSONObject.quote(quien) + "," + JSONObject.quote(texto) + ")", null));
+        if (Llamadas.preferencias(this).getBoolean(Escucha.ESCUCHAR_SIEMPRE, false)
+                && checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
+            Escucha.iniciar(this);
+        }
+
         web.addJavascriptInterface(new Puente(), "JarvisNativo");
         web.loadUrl(INICIO);
     }
@@ -166,6 +173,7 @@ public class MainActivity extends Activity {
 
     @Override
     protected void onDestroy() {
+        Escucha.oyente = null;
         hilos.shutdownNow();
         if (voz != null) voz.shutdown();
         web.destroy();
@@ -240,6 +248,8 @@ public class MainActivity extends Activity {
                     faltan.add(Manifest.permission.READ_CONTACTS);
                 if (checkSelfPermission(Manifest.permission.ANSWER_PHONE_CALLS) != PackageManager.PERMISSION_GRANTED)
                     faltan.add(Manifest.permission.ANSWER_PHONE_CALLS);
+                if (checkSelfPermission(Manifest.permission.CALL_PHONE) != PackageManager.PERMISSION_GRANTED)
+                    faltan.add(Manifest.permission.CALL_PHONE);
                 if (!faltan.isEmpty()) requestPermissions(faltan.toArray(new String[0]), 22);
             });
             return "";
@@ -255,6 +265,66 @@ public class MainActivity extends Activity {
         public void cambiarAjusteLlamadas(String nombre, boolean valor) {
             if (!nombre.startsWith("llamadas_")) return;
             Llamadas.preferencias(MainActivity.this).edit().putBoolean(nombre, valor).apply();
+        }
+
+        @JavascriptInterface
+        public String llamarContacto(String nombre) {
+            return Acciones.llamar(MainActivity.this, nombre);
+        }
+
+        // ------------------------------------------------------------------ escuchar siempre («Jarvis»)
+        @JavascriptInterface
+        public void guardarConexion(String servidor, String clave) {
+            Llamadas.preferencias(MainActivity.this).edit()
+                    .putString(Escucha.SERVIDOR, servidor).putString(Escucha.CLAVE, clave).apply();
+        }
+
+        @JavascriptInterface
+        public boolean escuchando() {
+            return Escucha.activa();
+        }
+
+        @JavascriptInterface
+        public String escucharSiempre(boolean si) {
+            Llamadas.preferencias(MainActivity.this).edit().putBoolean(Escucha.ESCUCHAR_SIEMPRE, si).apply();
+            if (!si) { Escucha.detener(MainActivity.this); return ""; }
+            java.util.List<String> faltan = new ArrayList<>();
+            if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED)
+                faltan.add(Manifest.permission.RECORD_AUDIO);
+            if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED)
+                faltan.add(Manifest.permission.POST_NOTIFICATIONS);
+            if (!faltan.isEmpty()) {
+                principal.post(() -> requestPermissions(faltan.toArray(new String[0]), 23));
+                return "Dame permiso para usar el micrófono (y mostrar la notificación) y vuelve a activar la opción.";
+            }
+            principal.post(() -> Escucha.iniciar(MainActivity.this));
+            return "";
+        }
+
+        @JavascriptInterface
+        public int sensibilidad() {
+            return Llamadas.preferencias(MainActivity.this).getInt(Escucha.SENSIBILIDAD, 2);
+        }
+
+        @JavascriptInterface
+        public void cambiarSensibilidad(int valor) {
+            Llamadas.preferencias(MainActivity.this).edit().putInt(Escucha.SENSIBILIDAD, Math.max(1, Math.min(3, valor))).apply();
+        }
+
+        @JavascriptInterface
+        public void pausarEscucha(boolean si) {
+            Escucha.pausar(si);
+        }
+
+        @JavascriptInterface
+        public boolean puedeAbrirDesdeSegundoPlano() {
+            return Settings.canDrawOverlays(MainActivity.this);
+        }
+
+        @JavascriptInterface
+        public void pedirAbrirDesdeSegundoPlano() {
+            principal.post(() -> startActivity(new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                    Uri.parse("package:" + getPackageName())).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)));
         }
 
         @JavascriptInterface

@@ -70,6 +70,15 @@ canvas{width:min(78vw,340px);height:min(70vw,300px)}
   Para abrir apps di, por ejemplo, «abre WhatsApp»; para las notificaciones, «léeme mis notificaciones».</p>
   <p class="nota">La app se conecta a Jarvis por NetBird: deja NetBird encendido en el teléfono y Jarvis abierto en el PC.
   Si estás en el WiFi de tu casa también puedes usar https://192.168.2.101:8766.</p>
+  <h2 style="margin-top:1.2rem">Escuchar siempre</h2>
+  <div class="fila"><span>Despertar diciendo «Jarvis» (también con la pantalla apagada)</span><input id="siempre" type="checkbox"></div>
+  <div class="fila"><span>Sensibilidad para oír «Jarvis»</span>
+    <select id="sensibilidad" style="background:var(--fondo);color:var(--texto);border:1px solid var(--borde);border-radius:8px;padding:.3rem">
+      <option value="1">Estricta</option><option value="2">Normal</option><option value="3">Sensible</option></select></div>
+  <button class="boton gris" id="segundoPlano">Abrir apps con la pantalla en otra app</button>
+  <p class="nota">La palabra «Jarvis» se reconoce dentro del teléfono, sin internet. Solo lo que dices después se manda a
+  Jarvis en el PC. Mientras escucha, Android muestra una notificación fija (ahí también puedes detenerla). Gasta algo
+  más de batería. Si se activa sola sin llamarla, ponla en «Estricta»; si no te oye, en «Sensible».</p>
   <h2 style="margin-top:1.2rem">Llamadas</h2>
   <button class="boton gris" id="filtroLlamadas">Activar filtro de llamadas spam</button>
   <div class="fila"><span>Bloquear el prefijo 809 (telemarketing)</span><input id="ll809" type="checkbox"></div>
@@ -123,9 +132,29 @@ function revisarFiltro(){$('filtroLlamadas').textContent=JarvisNativo.filtroLlam
 $('filtroLlamadas').onclick=()=>{const r=JarvisNativo.activarFiltroLlamadas();if(r)anadir('aviso',r);};
 document.addEventListener('visibilitychange',()=>{if(!document.hidden)revisarFiltro();});
 revisarFiltro();
+// ------------------------------------------------------------ escuchar siempre
+const siempre=$('siempre'),sensibilidad=$('sensibilidad');
+function guardarConexion(){JarvisNativo.guardarConexion(servidor.value.trim(),clave.value);}
+guardarConexion();clave.addEventListener('change',guardarConexion);servidor.addEventListener('change',guardarConexion);
+siempre.checked=JarvisNativo.escuchando()||localStorage.getItem('jarvis_siempre')==='1';
+siempre.addEventListener('change',()=>{
+  localStorage.setItem('jarvis_siempre',siempre.checked?'1':'0');
+  const r=JarvisNativo.escucharSiempre(siempre.checked);if(r){anadir('aviso',r);siempre.checked=false;}
+});
+sensibilidad.value=String(JarvisNativo.sensibilidad());
+sensibilidad.addEventListener('change',()=>JarvisNativo.cambiarSensibilidad(parseInt(sensibilidad.value)));
+function revisarSegundoPlano(){$('segundoPlano').textContent=JarvisNativo.puedeAbrirDesdeSegundoPlano()?'Abrir apps desde segundo plano: permitido ✓':'Abrir apps con la pantalla en otra app';}
+$('segundoPlano').onclick=()=>JarvisNativo.pedirAbrirDesdeSegundoPlano();
+document.addEventListener('visibilitychange',()=>{if(!document.hidden){revisarSegundoPlano();siempre.checked=JarvisNativo.escuchando()||siempre.checked;}});
+revisarSegundoPlano();
+window.eventoEscucha=(quien,texto)=>{
+  if(quien==='estado'){poner(texto,{escuchando:'Te escucho…',pensando:'Pensando…'}[texto]||'Toca el micrófono y habla');return;}
+  anadir(quien==='aviso'?'aviso':quien,texto);
+};
 function manejarTelefono(accion){
   let r='';
   if(['contestar','colgar','bloquear','llamadas'].includes(accion.accion))r=JarvisNativo.llamada(accion.accion);
+  else if(accion.accion==='llamar')r=JarvisNativo.llamarContacto(accion.contacto||'');
   else if(accion.accion==='abrir')r=JarvisNativo.abrirApp(accion.app||'');
   else if(accion.accion==='notificaciones')r=JarvisNativo.notificaciones(accion.app||'');
   if(r){anadir('jarvis',r);hablarTelefono(r);}
@@ -246,6 +275,7 @@ async function empezar(){
   try{flujo=await navigator.mediaDevices.getUserMedia({audio:{channelCount:1,echoCancellation:true,noiseSuppression:true}});}
   catch(e){anadir('aviso','No me diste permiso para usar el micrófono. Revísalo en los permisos del sitio.');return;}
   reproductor.pause();cola=[];if('speechSynthesis' in window)speechSynthesis.cancel();
+  JarvisNativo.pausarEscucha(true);
   tasa=ctx.sampleRate;fuenteMic=ctx.createMediaStreamSource(flujo);
   proc=ctx.createScriptProcessor(4096,1,1);trozos=[];hablo=false;silencio=0;
   const ganancia=ctx.createGain();ganancia.gain.value=0;   // procesa sin que suene por el parlante
@@ -286,6 +316,7 @@ function terminar(){
   grabando=false;nivelMic=0;
   try{proc.disconnect();fuenteMic.disconnect();}catch(e){}
   flujo.getTracks().forEach(t=>t.stop());
+  JarvisNativo.pausarEscucha(false);
   boton.classList.remove('grabando');boton.textContent='🎤';
   mandarAudio(aWav(trozos,tasa));
 }
