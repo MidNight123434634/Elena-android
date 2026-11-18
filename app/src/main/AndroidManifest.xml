@@ -16,6 +16,8 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <!-- Para poder abrir apps cuando Jarvis escucha con la pantalla en otra app -->
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+    <!-- Poner alarmas y temporizadores en el reloj del teléfono -->
+    <uses-permission android:name="com.android.alarm.permission.SET_ALARM" />
 
     <!-- Para ver qué apps hay y poder abrirlas -->
     <queries>
@@ -25,6 +27,14 @@
         </intent>
         <intent>
             <action android:name="android.intent.action.TTS_SERVICE" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="google.navigation" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="geo" />
         </intent>
     </queries>
 

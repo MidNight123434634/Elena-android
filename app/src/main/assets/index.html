@@ -63,11 +63,16 @@ canvas{width:min(78vw,340px);height:min(70vw,300px)}
   <label for="clave">Clave de Jarvis (está en clave_movil.txt, en el PC)</label>
   <input id="clave" type="password" autocomplete="current-password">
   <div class="fila"><span>Que me responda con voz</span><input id="voz" type="checkbox"></div>
+  <div class="fila"><span>Voz rápida (la voz del teléfono en vez de la del PC)</span><input id="rapida" type="checkbox"></div>
   <div class="fila"><span>Dejar de escuchar solo cuando me callo</span><input id="auto" type="checkbox"></div>
   <button class="boton gris" id="permisoAvisos">Permitir leer notificaciones</button>
   <div class="fila"><span>Leer en voz alta las notificaciones nuevas</span><input id="leerSolo" type="checkbox"></div>
-  <p class="nota">Las notificaciones se quedan en el teléfono: Jarvis las lee aquí y no las manda al PC.
-  Para abrir apps di, por ejemplo, «abre WhatsApp»; para las notificaciones, «léeme mis notificaciones».</p>
+  <p class="nota">Las notificaciones se quedan en el teléfono: Jarvis las lee aquí y no las manda al PC. Solo te dice de qué
+  app y de quién son, no el texto; para oír uno di «léeme el mensaje de Juan».</p>
+  <p class="nota">En el teléfono también puedo: «abre WhatsApp», «enciende la linterna», «¿cuánta batería me queda?»,
+  «sube el volumen», «pausa la música», «siguiente canción», «pon una alarma a las 7», «temporizador de 10 minutos»,
+  «mándale un WhatsApp a Juan diciendo que voy en camino», «llévame a la Plaza de Armas», «abre el WiFi».
+  Mientras estás en una llamada no hablo ni escucho.</p>
   <p class="nota">La app se conecta a Jarvis por NetBird: deja NetBird encendido en el teléfono y Jarvis abierto en el PC.
   Si estás en el WiFi de tu casa también puedes usar https://192.168.2.101:8766.</p>
   <h2 style="margin-top:1.2rem">Escuchar siempre</h2>
@@ -103,6 +108,8 @@ voz.checked=localStorage.getItem('jarvis_voz')!=='0';
 auto.checked=localStorage.getItem('jarvis_auto')!=='0';
 clave.addEventListener('change',()=>localStorage.setItem('jarvis_clave',clave.value));
 voz.addEventListener('change',()=>localStorage.setItem('jarvis_voz',voz.checked?'1':'0'));
+const rapida=$('rapida');rapida.checked=JarvisNativo.vozRapida();
+rapida.addEventListener('change',()=>JarvisNativo.cambiarVozRapida(rapida.checked));
 auto.addEventListener('change',()=>localStorage.setItem('jarvis_auto',auto.checked?'1':'0'));
 $('abrirAjustes').onclick=()=>$('ajustes').classList.add('abierto');
 $('cerrarAjustes').onclick=()=>$('ajustes').classList.remove('abierto');
@@ -119,7 +126,7 @@ $('permisoAvisos').onclick=()=>JarvisNativo.pedirPermisoNotificaciones();
 leerSolo.addEventListener('change',()=>JarvisNativo.leerNotificacionesSolo(leerSolo.checked));
 document.addEventListener('visibilitychange',()=>{if(!document.hidden){revisarPermisos();enviarApps();}});
 function hablarTelefono(texto){
-  if(!voz.checked)return;
+  if(!voz.checked||JarvisNativo.enLlamada())return;
   poner('hablando','Jarvis está hablando');JarvisNativo.hablar(texto);
   setTimeout(()=>{if(estado==='hablando')poner('esperando','Toca el micrófono y habla');},Math.min(15000,1200+texto.length*70));
 }
@@ -153,10 +160,8 @@ window.eventoEscucha=(quien,texto)=>{
 };
 function manejarTelefono(accion){
   let r='';
-  if(['contestar','colgar','bloquear','llamadas'].includes(accion.accion))r=JarvisNativo.llamada(accion.accion);
-  else if(accion.accion==='llamar')r=JarvisNativo.llamarContacto(accion.contacto||'');
-  else if(accion.accion==='abrir')r=JarvisNativo.abrirApp(accion.app||'');
-  else if(accion.accion==='notificaciones')r=JarvisNativo.notificaciones(accion.app||'');
+  if(accion.accion==='abrir')r=JarvisNativo.abrirApp(accion.app||'');
+  else r=JarvisNativo.accionTelefono(JSON.stringify(accion));
   if(r){anadir('jarvis',r);hablarTelefono(r);}
 }
 let appsEnviadas=0;
@@ -207,7 +212,8 @@ function siguiente(){
   reproductor.play().catch(siguiente);
 }
 function decir(respuesta,audios){
-  if(!voz.checked)return;
+  if(!voz.checked||JarvisNativo.enLlamada())return;
+  if(rapida.checked){hablarTelefono(respuesta);return;}
   if(audios&&audios.length){cola=audios.slice();siguiente();return;}
   if('speechSynthesis' in window){
     const u=new SpeechSynthesisUtterance(respuesta);u.lang='es-ES';
@@ -235,7 +241,7 @@ window.respuestaNativa=(id,json)=>{const f=pendientes[id];delete pendientes[id];
 function nativo(ruta,tipo,cuerpoBase64){
   return new Promise(resolver=>{
     const id=String(siguienteId++);pendientes[id]=resolver;
-    JarvisNativo.pedir(id,servidor.value.trim(),ruta,tipo,cuerpoBase64||'',clave.value,voz.checked);
+    JarvisNativo.pedir(id,servidor.value.trim(),ruta,tipo,cuerpoBase64||'',clave.value,voz.checked&&!rapida.checked);
   });
 }
 function aBase64(bytes){let s='';const n=0x8000;for(let i=0;i<bytes.length;i+=n)s+=String.fromCharCode.apply(null,bytes.subarray(i,i+n));return btoa(s);}

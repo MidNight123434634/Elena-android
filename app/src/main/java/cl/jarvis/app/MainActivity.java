@@ -122,7 +122,7 @@ public class MainActivity extends Activity {
 
         voz = new TextToSpeech(this, estado -> {
             vozLista = estado == TextToSpeech.SUCCESS;
-            if (vozLista) voz.setLanguage(new Locale("es", "ES"));
+            if (vozLista) { voz.setLanguage(new Locale("es", "ES")); voz.setSpeechRate(1.1f); }
         });
 
         actualizador = new Actualizador(this, texto -> principal.post(() -> web.evaluateJavascript(
@@ -413,7 +413,33 @@ public class MainActivity extends Activity {
 
         @JavascriptInterface
         public void hablar(String texto) {
+            if (Acciones.enLlamada(MainActivity.this)) return;  // en llamada no habla
             if (vozLista && texto != null) voz.speak(texto, TextToSpeech.QUEUE_FLUSH, null, "jarvis");
+        }
+
+        @JavascriptInterface
+        public boolean enLlamada() {
+            return Acciones.enLlamada(MainActivity.this);
+        }
+
+        /** Cualquier orden para el teléfono que mandó Jarvis desde el PC (linterna, alarma, WhatsApp...). */
+        @JavascriptInterface
+        public String accionTelefono(String json) {
+            try {
+                return Acciones.ejecutar(MainActivity.this, new JSONObject(json));
+            } catch (Exception e) {
+                return "No entendí la orden para el teléfono.";
+            }
+        }
+
+        @JavascriptInterface
+        public boolean vozRapida() {
+            return Llamadas.preferencias(MainActivity.this).getBoolean(Escucha.VOZ_RAPIDA, true);
+        }
+
+        @JavascriptInterface
+        public void cambiarVozRapida(boolean si) {
+            Llamadas.preferencias(MainActivity.this).edit().putBoolean(Escucha.VOZ_RAPIDA, si).apply();
         }
 
         @JavascriptInterface

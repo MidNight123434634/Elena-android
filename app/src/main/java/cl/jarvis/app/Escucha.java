@@ -53,6 +53,7 @@ public class Escucha extends Service {
     static final String SENSIBILIDAD = "escucha_sensibilidad";   // 1 (estricta) a 3 (sensible)
     static final String SERVIDOR = "conexion_servidor";
     static final String CLAVE = "conexion_clave";
+    static final String VOZ_RAPIDA = "voz_rapida";               // responder con la voz del teléfono (más rápido)
     private static final String CANAL = "escucha";
     private static final int TASA = 16000;
 
@@ -95,7 +96,7 @@ public class Escucha extends Service {
             activa = true;
             voz = new TextToSpeech(this, estado -> {
                 vozLista = estado == TextToSpeech.SUCCESS;
-                if (vozLista) voz.setLanguage(new Locale("es", "ES"));
+                if (vozLista) { voz.setLanguage(new Locale("es", "ES")); voz.setSpeechRate(1.1f); }
             });
             avisar("aviso", "Preparando la escucha…");
             StorageService.unpack(this, "model-en-us", "modelo_jarvis", m -> {
@@ -122,72 +123,193 @@ public class Escucha extends Service {
     }
 
     // ------------------------------------------------------------------ el bucle de escucha
-    private void bucle() {
+    private static final int TROZO = 1600;            // 0,1 segundos
+    private static final int MAXIMO_RECIENTE = TASA * 15;
+    private volatile double ruido = 300;              // ruido de fondo, medido mientras espera «Jarvis»
+
+    /** Lo último que se oyó (desde que empezó la frase actual), para no perder lo dicho junto a «Jarvis». */
+    private final short[] reciente = new short[MAXIMO_RECIENTE];
+    private int largoReciente = 0;
+    private long inicioReciente = 0;                  // en muestras desde que se creó el reconocedor
+
+    private AudioRecord abrirMicrofono() {
         int minimo = AudioRecord.getMinBufferSize(TASA, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT);
-        AudioRecord mic;
         try {
-            mic = new AudioRecord(MediaRecorder.AudioSource.VOICE_RECOGNITION, TASA, AudioFormat.CHANNEL_IN_MONO,
-                    AudioFormat.ENCODING_PCM_16BIT, Math.max(minimo, TASA));
+            AudioRecord mic = new AudioRecord(MediaRecorder.AudioSource.VOICE_RECOGNITION, TASA, AudioFormat.CHANNEL_IN_MONO,
+                    AudioFormat.ENCODING_PCM_16BIT, Math.max(minimo, TASA * 4));  // 2 segundos de margen
+            if (mic.getState() != AudioRecord.STATE_INITIALIZED) { mic.release(); return null; }
             mic.startRecording();
+            return mic;
         } catch (SecurityException e) {
             avisar("aviso", "Falta el permiso del micrófono.");
-            stopSelf();
-            return;
+            return null;
+        } catch (Exception e) {
+            return null;
         }
-        short[] trozo = new short[1600];  // 0,1 segundos
-        try (Recognizer despertador = new Recognizer(modelo, TASA, "[\"jarvis\", \"[unk]\"]")) {
-            despertador.setWords(true);
+    }
+
+    private static void cerrar(AudioRecord mic) {
+        if (mic == null) return;
+        try { mic.stop(); } catch (Exception ignorado) { }
+        mic.release();
+    }
+
+    private Recognizer nuevoDespertador() throws java.io.IOException {
+        Recognizer r = new Recognizer(modelo, TASA, "[\"jarvis\", \"[unk]\"]");
+        r.setWords(true);
+        largoReciente = 0;
+        inicioReciente = 0;
+        return r;
+    }
+
+    private void bucle() {
+        AudioRecord mic = abrirMicrofono();
+        if (mic == null) { stopSelf(); return; }
+        short[] trozo = new short[TROZO];
+        Recognizer despertador = null;
+        boolean enLlamada = false, reiniciar = false;
+        long oidas = 0;  // muestras que ya recibió el reconocedor
+        try {
+            despertador = nuevoDespertador();
             while (seguir) {
+                // en llamada: suelta el micrófono y no habla hasta que corte
+                if (Acciones.enLlamada(this)) {
+                    if (!enLlamada) { enLlamada = true; cerrar(mic); mic = null; mostrarNotificacion("En llamada: no escucho ni hablo"); }
+                    dormir(1000);
+                    continue;
+                }
+                if (enLlamada || mic == null) {
+                    enLlamada = false;
+                    mic = abrirMicrofono();
+                    if (mic == null) { dormir(2000); continue; }
+                    reiniciar = true;
+                    mostrarNotificacion("Di «Jarvis» para hablarme");
+                }
                 int n = mic.read(trozo, 0, trozo.length);
                 if (n <= 0) continue;
-                if (pausada) { despertador.reset(); continue; }
-                if (despertador.acceptWaveForm(trozo, n) && oyoJarvis(despertador.getResult())) {
-                    despertador.reset();
-                    atenderOrden(mic, trozo);
-                    despertador.reset();
+                if (pausada) { reiniciar = true; continue; }   // la pantalla está usando el micrófono
+                if (reiniciar) {
+                    despertador.close();
+                    despertador = nuevoDespertador();
+                    oidas = 0;
+                    reiniciar = false;
+                }
+                medirRuido(rms(trozo, n));
+                guardarReciente(trozo, n);
+                oidas += n;
+                if (despertador.acceptWaveForm(trozo, n)) {
+                    double fin = finDeJarvis(despertador.getResult());
+                    if (fin >= 0) {
+                        // lo que dijiste después de «Jarvis» (un poquito antes, para no cortar la primera sílaba)
+                        short[] resto = desdeReciente((long) ((fin - 0.15) * TASA));
+                        atenderOrden(mic, trozo, resto);
+                        // se descarta lo que se juntó mientras Jarvis pensaba y hablaba (si no, se oiría a sí mismo)
+                        cerrar(mic);
+                        mic = abrirMicrofono();
+                        reiniciar = true;
+                    } else {
+                        inicioReciente = oidas;  // terminó una frase sin «Jarvis»: se olvida
+                        largoReciente = 0;
+                    }
                 }
             }
         } catch (Exception e) {
             avisar("aviso", "La escucha se detuvo: " + e.getMessage());
         } finally {
-            mic.stop();
-            mic.release();
+            if (despertador != null) despertador.close();
+            cerrar(mic);
         }
     }
 
-    /** ¿El resultado trae «jarvis» con suficiente seguridad? */
-    private boolean oyoJarvis(String json) {
+    private static void dormir(long ms) {
+        try { Thread.sleep(ms); } catch (InterruptedException ignorado) { }
+    }
+
+    private static double rms(short[] datos, int n) {
+        double suma = 0;
+        for (int i = 0; i < n; i++) suma += (double) datos[i] * datos[i];
+        return n == 0 ? 0 : Math.sqrt(suma / n);
+    }
+
+    private void medirRuido(double rms) {
+        if (rms < ruido * 1.5) ruido = ruido * 0.95 + rms * 0.05;   // silencio o ruido de fondo
+        else ruido = ruido * 1.003;                                  // sube despacio si hay ruido constante
+        ruido = Math.max(80, Math.min(4000, ruido));
+    }
+
+    private double umbralVoz() { return Math.max(ruido * 2.5, 450); }
+
+    private void guardarReciente(short[] datos, int n) {
+        if (largoReciente + n > MAXIMO_RECIENTE) {   // frase demasiado larga: se descarta lo más viejo
+            int sobra = largoReciente + n - MAXIMO_RECIENTE;
+            System.arraycopy(reciente, sobra, reciente, 0, largoReciente - sobra);
+            largoReciente -= sobra;
+            inicioReciente += sobra;
+        }
+        System.arraycopy(datos, 0, reciente, largoReciente, n);
+        largoReciente += n;
+    }
+
+    private short[] desdeReciente(long muestra) {
+        int desde = (int) Math.max(0, Math.min(largoReciente, muestra - inicioReciente));
+        short[] resto = new short[largoReciente - desde];
+        System.arraycopy(reciente, desde, resto, 0, resto.length);
+        return resto;
+    }
+
+    /** Si el resultado trae «jarvis» con suficiente seguridad, devuelve el segundo en que terminó; si no, -1. */
+    private double finDeJarvis(String json) {
         try {
             JSONArray palabras = new JSONObject(json).optJSONArray("result");
-            if (palabras == null) return false;
+            if (palabras == null) return -1;
             int sensibilidad = Llamadas.preferencias(this).getInt(SENSIBILIDAD, 2);
             double minimo = sensibilidad == 1 ? 0.95 : sensibilidad == 3 ? 0.7 : 0.85;
+            double fin = -1;
             for (int i = 0; i < palabras.length(); i++) {
                 JSONObject p = palabras.getJSONObject(i);
-                if ("jarvis".equals(p.optString("word")) && p.optDouble("conf", 0) >= minimo) return true;
+                if ("jarvis".equals(p.optString("word")) && p.optDouble("conf", 0) >= minimo) fin = p.optDouble("end", 0);
             }
-        } catch (Exception ignorado) { }
-        return false;
+            return fin;
+        } catch (Exception ignorado) {
+            return -1;
+        }
     }
 
-    private void atenderOrden(AudioRecord mic, short[] trozo) {
-        pitido();
-        mostrarNotificacion("Te escucho…");
-        avisar("estado", "escuchando");
-        byte[] orden = grabarOrden(mic, trozo, 1.6, 8);
-        if (orden == null) {  // solo dijo «Jarvis»
-            decirYEsperar("Aquí estoy, señor.");
-            orden = grabarOrden(mic, trozo, 5, 8);
+    /** Segundos con voz dentro de un trozo de audio. */
+    private double segundosConVoz(short[] audio) {
+        double umbral = umbralVoz(), segundos = 0;
+        for (int i = 0; i + TROZO <= audio.length; i += TROZO) {
+            double suma = 0;
+            for (int j = i; j < i + TROZO; j++) suma += (double) audio[j] * audio[j];
+            if (Math.sqrt(suma / TROZO) > umbral) segundos += (double) TROZO / TASA;
+        }
+        return segundos;
+    }
+
+    private void atenderOrden(AudioRecord mic, short[] trozo, short[] resto) {
+        byte[] orden;
+        if (segundosConVoz(resto) >= 0.3) {
+            // «Jarvis, abre WhatsApp» dicho de corrido: la orden ya está grabada; se sigue un momento por si continúas
+            avisar("estado", "escuchando");
+            orden = grabarOrden(mic, trozo, aBytes(resto), 0.6, 12);
+        } else {
+            // solo dijo «Jarvis»: pitido y escucha al tiro (sin hablar encima de ti)
+            pitido(ToneGenerator.TONE_PROP_BEEP);
+            mostrarNotificacion("Te escucho…");
+            avisar("estado", "escuchando");
+            orden = grabarOrden(mic, trozo, null, 6, 12);
         }
         if (orden == null) {
+            pitido(ToneGenerator.TONE_PROP_NACK);
             mostrarNotificacion("Di «Jarvis» para hablarme");
             avisar("estado", "esperando");
             return;
         }
         mostrarNotificacion("Pensando…");
         avisar("estado", "pensando");
+        boolean rapida = Llamadas.preferencias(this).getBoolean(VOZ_RAPIDA, true);
         try {
-            JSONObject r = preguntar(wav(orden));
+            JSONObject r = preguntar(wav(orden), !rapida);
             if (r.optString("oido").length() > 0) avisar("tu", "🎤 " + r.optString("oido"));
             JSONObject accion = r.optJSONObject("telefono");
             String texto;
@@ -198,7 +320,7 @@ public class Escucha extends Service {
             } else {
                 texto = r.optString("respuesta", r.optString("error", "No te entendí."));
                 avisar("jarvis", texto);
-                if (!reproducir(r.optJSONArray("audios"))) decirYEsperar(texto);
+                if (rapida || !reproducir(r.optJSONArray("audios"))) decirYEsperar(texto);
             }
         } catch (Exception e) {
             String texto = "No pude hablar con Jarvis en el PC. ¿Está abierto y NetBird conectado?";
@@ -209,25 +331,34 @@ public class Escucha extends Service {
         avisar("estado", "esperando");
     }
 
-    /** Graba hasta que te callas. Devuelve null si no hablaste en «espera» segundos. */
-    private byte[] grabarOrden(AudioRecord mic, short[] trozo, double espera, double maximo) {
+    private static byte[] aBytes(short[] audio) {
+        ByteBuffer b = ByteBuffer.allocate(audio.length * 2).order(ByteOrder.LITTLE_ENDIAN);
+        for (short m : audio) b.putShort(m);
+        return b.array();
+    }
+
+    /**
+     * Graba hasta que te callas (1 segundo de silencio). Si 'antes' trae audio, ya hablaste: se sigue grabando
+     * solo si retomas antes de 'espera' segundos. Si no, devuelve null si no hablaste en 'espera' segundos.
+     */
+    private byte[] grabarOrden(AudioRecord mic, short[] trozo, byte[] antes, double espera, double maximo) {
         ByteArrayOutputStream pcm = new ByteArrayOutputStream();
+        if (antes != null) pcm.write(antes, 0, antes.length);
         ByteBuffer bytes = ByteBuffer.allocate(trozo.length * 2).order(ByteOrder.LITTLE_ENDIAN);
-        double tiempo = 0, silencio = 0, ruido = 300;
-        boolean hablo = false;
-        while (seguir && tiempo < maximo) {
+        double tiempo = 0, silencio = 0, umbral = umbralVoz();
+        boolean hablo = antes != null;
+        double finSilencio = antes != null ? espera : 1.0;
+        while (seguir && tiempo < maximo && mic != null) {
             int n = mic.read(trozo, 0, trozo.length);
             if (n <= 0) continue;
-            double suma = 0;
-            for (int i = 0; i < n; i++) suma += (double) trozo[i] * trozo[i];
-            double rms = Math.sqrt(suma / n);
-            if (tiempo < 0.3) ruido = Math.max(ruido, rms * 1.5);  // el ruido de fondo de los primeros instantes
+            double nivel = rms(trozo, n);
             bytes.clear();
             for (int i = 0; i < n; i++) bytes.putShort(trozo[i]);
             pcm.write(bytes.array(), 0, n * 2);
             tiempo += (double) n / TASA;
-            if (rms > ruido * 2 && rms > 600) { hablo = true; silencio = 0; }
-            else if (hablo) { silencio += (double) n / TASA; if (silencio > 1.2) break; }
+            boolean voz = nivel > umbral && tiempo > 0.2;   // lo primero puede ser el pitido
+            if (voz) { hablo = true; silencio = 0; finSilencio = 1.0; }
+            else if (hablo) { silencio += (double) n / TASA; if (silencio > finSilencio) break; }
             if (!hablo && tiempo > espera) return null;
         }
         return hablo ? pcm.toByteArray() : null;
@@ -242,7 +373,7 @@ public class Escucha extends Service {
     }
 
     // ------------------------------------------------------------------ hablar con el PC
-    private JSONObject preguntar(byte[] audio) throws Exception {
+    private JSONObject preguntar(byte[] audio, boolean vozDelPc) throws Exception {
         SharedPreferences pref = Llamadas.preferencias(this);
         String base = pref.getString(SERVIDOR, "https://100.124.180.1:8766").trim().replaceAll("/+$", "");
         if (!base.startsWith("https://")) throw new IllegalArgumentException("dirección no válida");
@@ -254,7 +385,7 @@ public class Escucha extends Service {
         c.setRequestProperty("Content-Type", "audio/wav");
         c.setRequestProperty("X-Jarvis", "1");
         c.setRequestProperty("X-Jarvis-Clave", pref.getString(CLAVE, ""));
-        c.setRequestProperty("X-Jarvis-Voz", "1");
+        c.setRequestProperty("X-Jarvis-Voz", vozDelPc ? "1" : "0");
         c.setRequestProperty("X-Jarvis-Telefono", "1");
         c.setFixedLengthStreamingMode(audio.length);
         try (OutputStream salida = c.getOutputStream()) { salida.write(audio); }
@@ -273,6 +404,7 @@ public class Escucha extends Service {
     private boolean reproducir(JSONArray audios) {
         if (audios == null || audios.length() == 0) return false;
         for (int i = 0; i < audios.length(); i++) {
+            if (Acciones.enLlamada(this)) return true;  // empezó una llamada: se calla
             JSONObject a = audios.optJSONObject(i);
             if (a == null) continue;
             try {
@@ -296,7 +428,7 @@ public class Escucha extends Service {
     }
 
     private void decirYEsperar(String texto) {
-        if (!vozLista || texto == null || texto.isEmpty()) return;
+        if (!vozLista || texto == null || texto.isEmpty() || Acciones.enLlamada(this)) return;
         CountDownLatch fin = new CountDownLatch(1);
         voz.setOnUtteranceProgressListener(new UtteranceProgressListener() {
             @Override public void onStart(String id) { }
@@ -307,10 +439,10 @@ public class Escucha extends Service {
         try { fin.await(30, TimeUnit.SECONDS); } catch (InterruptedException ignorado) { }
     }
 
-    private void pitido() {
+    private void pitido(int cual) {
         try {
             ToneGenerator tono = new ToneGenerator(AudioManager.STREAM_MUSIC, 60);
-            tono.startTone(ToneGenerator.TONE_PROP_BEEP, 120);
+            tono.startTone(cual, 120);
             Thread.sleep(150);
             tono.release();
         } catch (Exception ignorado) { }

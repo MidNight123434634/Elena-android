@@ -163,6 +163,7 @@ public class Llamadas extends CallScreeningService {
         private static boolean lista = false;
 
         static synchronized void decir(Context c, final String texto) {
+            if (Acciones.enLlamada(c)) return;  // llamada en espera durante otra llamada: no habla encima
             if (voz == null) {
                 voz = new TextToSpeech(c.getApplicationContext(), estado -> {
                     lista = estado == TextToSpeech.SUCCESS;

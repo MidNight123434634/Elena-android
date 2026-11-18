@@ -13,6 +13,8 @@ android {
         // El número de versión lo pone GitHub en cada armado: así la app sabe cuándo hay una nueva
         versionCode((project.findProperty("versionCode") ?: "1").toString().toInteger())
         versionName "1." + (project.findProperty("versionCode") ?: "1")
+        // Solo los procesadores de teléfonos (sin los de emuladores): la APK pesa bastante menos y se actualiza más rápido
+        ndk { abiFilters "arm64-v8a", "armeabi-v7a" }
     }
 
     // Siempre la misma firma: Android solo deja actualizar una app si la versión nueva viene firmada igual
