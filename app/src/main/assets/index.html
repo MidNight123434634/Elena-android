@@ -1,0 +1,315 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0b0f1a">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>Jarvis</title>
+<style>
+:root{--fondo:#0b0f1a;--panel:#141a2a;--borde:#232c44;--texto:#e8ecf5;--suave:#8a96b3;--azul:#2a6df4;--verde:#00e676;--ambar:#ffb300;--rojo:#ff5252}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;height:100%;background:var(--fondo);color:var(--texto);font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+body{display:flex;flex-direction:column;height:100dvh;padding:env(safe-area-inset-top) 0 env(safe-area-inset-bottom)}
+header{display:flex;align-items:center;gap:.6rem;padding:.8rem 1rem .2rem}
+header h1{font-size:1.15rem;letter-spacing:.25em;margin:0;flex:1;font-weight:600}
+#punto{width:.6rem;height:.6rem;border-radius:50%;background:var(--suave)}
+#punto.ok{background:var(--verde)}#punto.mal{background:var(--rojo)}
+.icono{background:none;border:0;color:var(--suave);font-size:1.4rem;padding:.3rem .5rem}
+#escena{position:relative;flex:0 0 auto;display:flex;justify-content:center}
+canvas{width:min(78vw,340px);height:min(70vw,300px)}
+#estado{text-align:center;color:var(--suave);font-size:.9rem;min-height:1.2em;margin-top:-.4rem}
+#chat{flex:1;overflow-y:auto;padding:.6rem 1rem;display:flex;flex-direction:column;gap:.45rem}
+.msg{max-width:85%;padding:.55rem .8rem;border-radius:14px;line-height:1.35;font-size:.98rem;white-space:pre-wrap;word-wrap:break-word}
+.tu{align-self:flex-end;background:#25304d;border-bottom-right-radius:4px}
+.jarvis{align-self:flex-start;background:#132544;border:1px solid #1d3a6b;border-bottom-left-radius:4px}
+.aviso{align-self:center;background:#2c2510;color:#ffd27a;font-size:.88rem;max-width:95%}
+.aviso a{color:#9fd0ff}
+#barra{display:flex;align-items:center;gap:.5rem;padding:.5rem .8rem .8rem}
+#texto{flex:1;padding:.75rem 1rem;border-radius:24px;border:1px solid var(--borde);background:var(--panel);color:var(--texto);font-size:1rem;outline:none}
+#enviar{width:2.8rem;height:2.8rem;border-radius:50%;border:0;background:var(--azul);color:#fff;font-size:1.1rem}
+#hablar{width:4.4rem;height:4.4rem;border-radius:50%;border:0;background:var(--azul);color:#fff;font-size:1.7rem;box-shadow:0 0 0 0 rgba(42,109,244,.5);transition:background .2s}
+#hablar.grabando{background:var(--rojo);animation:latido 1.2s infinite}
+#hablar:disabled{background:#333}
+@keyframes latido{0%{box-shadow:0 0 0 0 rgba(255,82,82,.55)}100%{box-shadow:0 0 0 18px rgba(255,82,82,0)}}
+#ajustes{position:fixed;inset:0;background:rgba(0,0,0,.6);display:none;align-items:flex-end;z-index:5}
+#ajustes.abierto{display:flex}
+.hoja{background:var(--panel);width:100%;border-radius:18px 18px 0 0;padding:1.2rem 1.1rem calc(1.2rem + env(safe-area-inset-bottom));max-height:85dvh;overflow-y:auto}
+.hoja h2{margin:0 0 .8rem;font-size:1.1rem}
+.hoja label{display:block;margin:.8rem 0 .3rem;color:var(--suave);font-size:.9rem}
+.hoja input[type=password]{width:100%;padding:.7rem;border-radius:10px;border:1px solid var(--borde);background:var(--fondo);color:var(--texto);font-size:1rem}
+.fila{display:flex;align-items:center;justify-content:space-between;margin:.9rem 0}
+.boton{display:block;width:100%;text-align:center;padding:.8rem;margin:.5rem 0;border-radius:12px;border:0;background:var(--azul);color:#fff;font-size:1rem;text-decoration:none}
+.boton.gris{background:#2a3350}
+.nota{color:var(--suave);font-size:.85rem;line-height:1.4}
+</style></head><body>
+<header>
+  <span id="punto" title="Conexión con el PC"></span>
+  <h1>JARVIS</h1>
+  <button class="icono" id="abrirAjustes" aria-label="Ajustes">⚙</button>
+</header>
+<div id="escena"><canvas id="esfera" width="680" height="600"></canvas></div>
+<div id="estado">Toca el micrófono y habla</div>
+<div id="chat"></div>
+<div id="barra">
+  <input id="texto" type="text" placeholder="Escríbele a Jarvis" enterkeyhint="send" autocomplete="off">
+  <button id="enviar" aria-label="Enviar">➤</button>
+  <button id="hablar" aria-label="Hablar">🎤</button>
+</div>
+
+<div id="ajustes"><div class="hoja">
+  <h2>Ajustes</h2>
+  <label for="servidor">Dirección de Jarvis</label>
+  <input id="servidor" type="url" autocomplete="off" style="width:100%;padding:.7rem;border-radius:10px;border:1px solid var(--borde);background:var(--fondo);color:var(--texto);font-size:1rem">
+  <label for="clave">Clave de Jarvis (está en clave_movil.txt, en el PC)</label>
+  <input id="clave" type="password" autocomplete="current-password">
+  <div class="fila"><span>Que me responda con voz</span><input id="voz" type="checkbox"></div>
+  <div class="fila"><span>Dejar de escuchar solo cuando me callo</span><input id="auto" type="checkbox"></div>
+  <p class="nota">La app se conecta a Jarvis por NetBird: deja NetBird encendido en el teléfono y Jarvis abierto en el PC.
+  Si estás en el WiFi de tu casa también puedes usar https://192.168.2.101:8766.</p>
+  <button class="boton gris" id="cerrarAjustes">Listo</button>
+</div></div>
+
+<script>
+const $=id=>document.getElementById(id);
+const chat=$('chat'),texto=$('texto'),boton=$('hablar'),estadoTxt=$('estado'),punto=$('punto');
+const clave=$('clave'),voz=$('voz'),auto=$('auto'),servidor=$('servidor');
+servidor.value=localStorage.getItem('jarvis_servidor')||'https://100.124.180.1:8766';
+servidor.addEventListener('change',()=>{localStorage.setItem('jarvis_servidor',servidor.value.trim());revisar();});
+clave.value=localStorage.getItem('jarvis_clave')||'';
+voz.checked=localStorage.getItem('jarvis_voz')!=='0';
+auto.checked=localStorage.getItem('jarvis_auto')!=='0';
+clave.addEventListener('change',()=>localStorage.setItem('jarvis_clave',clave.value));
+voz.addEventListener('change',()=>localStorage.setItem('jarvis_voz',voz.checked?'1':'0'));
+auto.addEventListener('change',()=>localStorage.setItem('jarvis_auto',auto.checked?'1':'0'));
+$('abrirAjustes').onclick=()=>$('ajustes').classList.add('abierto');
+$('cerrarAjustes').onclick=()=>$('ajustes').classList.remove('abierto');
+if(!clave.value)$('ajustes').classList.add('abierto');
+
+// ------------------------------------------------------------ mensajes
+function anadir(quien,msg,html){
+  const p=document.createElement('div');p.className='msg '+quien;
+  if(html)p.innerHTML=msg;else p.textContent=msg;
+  chat.appendChild(p);chat.scrollTop=chat.scrollHeight;
+  const todos=chat.querySelectorAll('.msg');if(todos.length>60)todos[0].remove();
+}
+// ------------------------------------------------------------ estado (colores como en el PC)
+const COLORES={esperando:'#2a6df4',escuchando:'#ff5252',pensando:'#ffb300',hablando:'#00e676',error:'#ff5252'};
+let estado='esperando';
+function poner(e,txt){estado=e;estadoTxt.textContent=txt||'';}
+
+// ------------------------------------------------------------ audio: voz de Jarvis y nivel para la esfera
+let ctxAudio=null,analizador=null,datosNivel=null,nivelMic=0;
+const reproductor=new Audio();reproductor.crossOrigin='anonymous';
+let cola=[];
+function audio(){
+  if(!ctxAudio){
+    const C=window.AudioContext||window.webkitAudioContext;if(!C)return null;
+    ctxAudio=new C();
+    try{
+      const fuente=ctxAudio.createMediaElementSource(reproductor);
+      analizador=ctxAudio.createAnalyser();analizador.fftSize=512;
+      datosNivel=new Uint8Array(analizador.fftSize);
+      fuente.connect(analizador);analizador.connect(ctxAudio.destination);
+    }catch(e){analizador=null;}
+  }
+  if(ctxAudio.state==='suspended')ctxAudio.resume();
+  return ctxAudio;
+}
+reproductor.addEventListener('ended',siguiente);
+reproductor.addEventListener('error',siguiente);
+function siguiente(){
+  if(!cola.length){if(estado==='hablando')poner('esperando','Toca el micrófono y habla');return;}
+  const a=cola.shift();
+  reproductor.src='data:'+a.tipo+';base64,'+a.datos;
+  poner('hablando','Jarvis está hablando');
+  reproductor.play().catch(siguiente);
+}
+function decir(respuesta,audios){
+  if(!voz.checked)return;
+  if(audios&&audios.length){cola=audios.slice();siguiente();return;}
+  if('speechSynthesis' in window){
+    const u=new SpeechSynthesisUtterance(respuesta);u.lang='es-ES';
+    u.onstart=()=>poner('hablando','Jarvis está hablando');
+    u.onend=()=>poner('esperando','Toca el micrófono y habla');
+    speechSynthesis.cancel();speechSynthesis.speak(u);
+  }
+}
+function nivelVoz(){
+  if(estado==='escuchando')return nivelMic;
+  if(estado!=='hablando')return 0;
+  if(analizador&&!reproductor.paused){
+    analizador.getByteTimeDomainData(datosNivel);
+    let s=0;for(let i=0;i<datosNivel.length;i++){const v=(datosNivel[i]-128)/128;s+=v*v;}
+    return Math.min(1.2,Math.sqrt(s/datosNivel.length)*4.5);
+  }
+  const t=performance.now()/1000;   // voz del teléfono: vaivén parecido a sílabas
+  return Math.max(0,.35+.4*Math.sin(t*11)+.3*Math.sin(t*17.3+1));
+}
+
+// ------------------------------------------------------------ hablar con el PC
+// La app pregunta a través de la parte nativa (confía en el certificado de tu PC y usa NetBird)
+const pendientes={};let siguienteId=1;
+window.respuestaNativa=(id,json)=>{const f=pendientes[id];delete pendientes[id];if(f)f(JSON.parse(json));};
+function nativo(ruta,tipo,cuerpoBase64){
+  return new Promise(resolver=>{
+    const id=String(siguienteId++);pendientes[id]=resolver;
+    JarvisNativo.pedir(id,servidor.value.trim(),ruta,tipo,cuerpoBase64||'',clave.value,voz.checked);
+  });
+}
+function aBase64(bytes){let s='';const n=0x8000;for(let i=0;i<bytes.length;i+=n)s+=String.fromCharCode.apply(null,bytes.subarray(i,i+n));return btoa(s);}
+async function pedir(ruta,cuerpo,tipo){
+  const bytes=typeof cuerpo==='string'?new TextEncoder().encode(cuerpo):new Uint8Array(await cuerpo.arrayBuffer());
+  const d=await nativo(ruta,tipo,aBase64(bytes));
+  if(d.estado_http===401)$('ajustes').classList.add('abierto');
+  if(d.sin_conexion){punto.className='mal';throw new Error('sin conexión');}
+  punto.className='ok';
+  return d;
+}
+async function enviar(){
+  const t=texto.value.trim();if(!t)return;
+  audio();anadir('tu',t);texto.value='';
+  poner('pensando','Pensando…');
+  try{
+    const d=await pedir('/preguntar',JSON.stringify({texto:t}),'application/json');
+    anadir('jarvis',d.respuesta||d.error||'Sin respuesta');
+    poner('esperando','Toca el micrófono y habla');
+    if(d.respuesta)decir(d.respuesta,d.audios);
+  }catch(e){anadir('jarvis','No pude conectar con Jarvis. ¿Está abierto en el PC?');poner('error','Sin conexión');}
+}
+$('enviar').onclick=enviar;
+texto.addEventListener('keydown',e=>{if(e.key==='Enter')enviar();});
+
+// ------------------------------------------------------------ micrófono (WAV 16 kHz, como entiende el PC)
+let fuenteMic=null,proc=null,flujo=null,trozos=[],tasa=48000,grabando=false,limite=null,hablo=false,silencio=0;
+function sinMicrofono(){
+  if(!window.isSecureContext){
+    anadir('aviso','El micrófono no está disponible en esta pantalla.');
+  }else{anadir('aviso','Este navegador no permite grabar audio. Usa Chrome.');}
+}
+async function empezar(){
+  const ctx=audio();
+  if(!navigator.mediaDevices||!ctx){sinMicrofono();return;}
+  try{flujo=await navigator.mediaDevices.getUserMedia({audio:{channelCount:1,echoCancellation:true,noiseSuppression:true}});}
+  catch(e){anadir('aviso','No me diste permiso para usar el micrófono. Revísalo en los permisos del sitio.');return;}
+  reproductor.pause();cola=[];if('speechSynthesis' in window)speechSynthesis.cancel();
+  tasa=ctx.sampleRate;fuenteMic=ctx.createMediaStreamSource(flujo);
+  proc=ctx.createScriptProcessor(4096,1,1);trozos=[];hablo=false;silencio=0;
+  const ganancia=ctx.createGain();ganancia.gain.value=0;   // procesa sin que suene por el parlante
+  proc.onaudioprocess=e=>{
+    if(!grabando)return;
+    const d=e.inputBuffer.getChannelData(0);trozos.push(new Float32Array(d));
+    let s=0;for(let i=0;i<d.length;i+=4)s+=d[i]*d[i];
+    const rms=Math.sqrt(s/(d.length/4));nivelMic=Math.min(1.2,rms*9);
+    if(auto.checked){
+      if(rms>.02){hablo=true;silencio=0;}
+      else if(hablo){silencio+=d.length/tasa;if(silencio>1.4)setTimeout(terminar,0);}
+    }
+  };
+  fuenteMic.connect(proc);proc.connect(ganancia);ganancia.connect(ctx.destination);
+  grabando=true;boton.classList.add('grabando');boton.textContent='■';
+  poner('escuchando',auto.checked?'Te escucho… (envío cuando te calles)':'Te escucho… toca para enviar');
+  limite=setTimeout(terminar,30000);
+}
+function aWav(partes,origen){
+  const largo=partes.reduce((n,t)=>n+t.length,0),todo=new Float32Array(largo);
+  let o=0;for(const t of partes){todo.set(t,o);o+=t.length;}
+  const destino=16000,razon=origen/destino,n=Math.floor(largo/razon),pcm=new Int16Array(n);
+  for(let i=0;i<n;i++){
+    const a=Math.floor(i*razon),b=Math.min(largo,Math.floor((i+1)*razon));
+    let s=0;for(let j=a;j<b;j++)s+=todo[j];
+    const v=Math.max(-1,Math.min(1,s/Math.max(1,b-a)));pcm[i]=v<0?v*32768:v*32767;
+  }
+  const buf=new ArrayBuffer(44+n*2),dv=new DataView(buf);
+  const txt=(p,s)=>{for(let i=0;i<s.length;i++)dv.setUint8(p+i,s.charCodeAt(i))};
+  txt(0,'RIFF');dv.setUint32(4,36+n*2,true);txt(8,'WAVE');txt(12,'fmt ');dv.setUint32(16,16,true);
+  dv.setUint16(20,1,true);dv.setUint16(22,1,true);dv.setUint32(24,destino,true);dv.setUint32(28,destino*2,true);
+  dv.setUint16(32,2,true);dv.setUint16(34,16,true);txt(36,'data');dv.setUint32(40,n*2,true);
+  new Int16Array(buf,44).set(pcm);
+  return new Blob([buf],{type:'audio/wav'});
+}
+function terminar(){
+  clearTimeout(limite);if(!grabando)return;
+  grabando=false;nivelMic=0;
+  try{proc.disconnect();fuenteMic.disconnect();}catch(e){}
+  flujo.getTracks().forEach(t=>t.stop());
+  boton.classList.remove('grabando');boton.textContent='🎤';
+  mandarAudio(aWav(trozos,tasa));
+}
+async function mandarAudio(blob){
+  if(blob.size<1500){anadir('aviso','No alcancé a escuchar nada.');poner('esperando','Toca el micrófono y habla');return;}
+  boton.disabled=true;poner('pensando','Pensando…');
+  try{
+    const d=await pedir('/oir',blob,'audio/wav');
+    if(d.oido)anadir('tu','🎤 '+d.oido);
+    anadir('jarvis',d.respuesta||d.error||'Sin respuesta');
+    poner('esperando','Toca el micrófono y habla');
+    if(d.respuesta)decir(d.respuesta,d.audios);
+  }catch(e){anadir('jarvis','No pude conectar con Jarvis. ¿Está abierto en el PC?');poner('error','Sin conexión');}
+  boton.disabled=false;
+}
+boton.onclick=()=>{if(grabando)terminar();else empezar();};
+if(!window.isSecureContext)sinMicrofono();
+
+// ------------------------------------------------------------ conexión con el PC
+async function revisar(){
+  const d=await nativo('/estado','','');
+  punto.className=d.ok?'ok':'mal';
+}
+revisar();setInterval(revisar,15000);
+
+// ------------------------------------------------------------ la esfera (versión liviana de la del PC)
+const lienzo=$('esfera'),g=lienzo.getContext('2d');
+const W=lienzo.width,H=lienzo.height,CX=W/2,CY=H/2;
+let nivel=0,giro=0,colorActual=[42,109,244],ultimo=performance.now();
+const BARRAS=56,ruido=[...Array(BARRAS)].map(()=>[Math.random()*6.28,5+Math.random()*6]);
+const orbitas=[...Array(18)].map((_,i)=>({a:Math.random()*6.28,o:i%3,v:[.5,-.4,.3][i%3]}));
+function hex(c){return[parseInt(c.slice(1,3),16),parseInt(c.slice(3,5),16),parseInt(c.slice(5,7),16)];}
+function rgba(c,a){return`rgba(${c[0]|0},${c[1]|0},${c[2]|0},${a})`;}
+function mezcla(c,d,f){return c.map((x,i)=>x+(d[i]-x)*f);}
+function cuadro(ahora){
+  const dt=Math.min(.1,(ahora-ultimo)/1000);ultimo=ahora;const t=ahora/1000;
+  const objetivo=nivelVoz();nivel+=(objetivo-nivel)*(objetivo>nivel?.5:.15);
+  colorActual=mezcla(colorActual,hex(COLORES[estado]||COLORES.esperando),.12);
+  const vel={esperando:1.2,escuchando:4,pensando:7,hablando:5,error:0}[estado]||1;
+  const amp={esperando:6,escuchando:10,pensando:9,hablando:14,error:0}[estado]||4;
+  const R=118+amp*.9*Math.sin(t*vel)+nivel*38;giro+=dt*(.25+vel*.08+nivel*1.6);
+  g.clearRect(0,0,W,H);
+  // resplandor
+  const res=g.createRadialGradient(CX,CY,R*.8,CX,CY,R*1.9);
+  res.addColorStop(0,rgba(colorActual,.35+nivel*.2));res.addColorStop(1,rgba(colorActual,0));
+  g.fillStyle=res;g.beginPath();g.arc(CX,CY,R*1.9,0,6.29);g.fill();
+  // barras de la voz
+  g.lineCap='round';g.lineWidth=5;g.strokeStyle=rgba(mezcla(colorActual,[255,255,255],.3),.9);
+  for(let i=0;i<BARRAS;i++){
+    const an=i/BARRAS*6.283+giro*.3,va=.5+.5*Math.sin(t*ruido[i][1]+ruido[i][0]);
+    const largo=nivel>.02?4+nivel*58*(.35+.65*va):2+amp*.2*(.5+.5*Math.sin(t*vel+i*.6));
+    const b=R*1.12,c=Math.cos(an),s=Math.sin(an);
+    g.beginPath();g.moveTo(CX+c*b,CY+s*b);g.lineTo(CX+c*(b+largo),CY+s*(b+largo));g.stroke();
+  }
+  // cuerpo con luz
+  const cuerpo=g.createRadialGradient(CX-R*.35,CY-R*.4,R*.05,CX,CY,R);
+  cuerpo.addColorStop(0,rgba(mezcla(colorActual,[255,255,255],.55),1));
+  cuerpo.addColorStop(.45,rgba(colorActual,1));
+  cuerpo.addColorStop(1,rgba(mezcla(colorActual,[11,15,26],.8),1));
+  g.fillStyle=cuerpo;g.beginPath();g.arc(CX,CY,R,0,6.29);g.fill();
+  // malla que gira
+  g.lineWidth=1.6;g.strokeStyle=rgba(mezcla(colorActual,[255,255,255],.5),.55);
+  const inc=.38,ci=Math.cos(inc),si=Math.sin(inc);
+  const proyectar=(x,y,z)=>{const cg=Math.cos(giro),sg=Math.sin(giro);[x,z]=[x*cg+z*sg,-x*sg+z*cg];[y,z]=[y*ci-z*si,y*si+z*ci];return[x,y,z];};
+  const curva=f=>{g.beginPath();let dentro=false;for(let j=0;j<=48;j++){const[x,y,z]=f(j/48*6.283);if(z>=0){dentro?g.lineTo(CX+x*R,CY+y*R):g.moveTo(CX+x*R,CY+y*R);dentro=true;}else dentro=false;}g.stroke();};
+  for(let m=0;m<6;m++){const lon=m/6*Math.PI;curva(a=>proyectar(Math.cos(a)*Math.cos(lon),Math.sin(a),Math.cos(a)*Math.sin(lon)));}
+  for(let p=1;p<=4;p++){const lat=p/5*Math.PI-Math.PI/2,onda=1+nivel*.07*Math.sin(t*9+p);curva(a=>proyectar(Math.cos(lat)*Math.cos(a)*onda,Math.sin(lat),Math.cos(lat)*Math.sin(a)*onda));}
+  // brillo
+  g.fillStyle='rgba(255,255,255,.55)';g.beginPath();g.ellipse(CX-R*.38,CY-R*.42,R*.15,R*.1,0,0,6.29);g.fill();
+  // orbes
+  for(const o of orbitas){
+    o.a+=dt*o.v*(1+nivel*2.5);const rad=[1.42,1.58,1.75][o.o]*(118+nivel*10),incl=[.85,.78,1.1][o.o],pl=[-.55,.55,0][o.o];
+    let x=Math.cos(o.a),y=-Math.sin(o.a)*Math.sin(incl),z=Math.sin(o.a)*Math.cos(incl);
+    [x,y]=[x*Math.cos(pl)-y*Math.sin(pl),x*Math.sin(pl)+y*Math.cos(pl)];
+    g.fillStyle=rgba(mezcla(colorActual,[255,255,255],.55),.6+.4*(z+1)/2);
+    g.beginPath();g.arc(CX+x*rad,CY+y*rad,3+1.5*(z+1)+nivel*2,0,6.29);g.fill();
+  }
+  requestAnimationFrame(cuadro);
+}
+requestAnimationFrame(cuadro);
+</script></body></html>
