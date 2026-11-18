@@ -42,7 +42,7 @@ jobs:
           git config user.email "github-actions@users.noreply.github.com"
           git add Jarvis.apk Jarvis_version.json
           git commit -q -m "APK de ${GITHUB_SHA::7}"
-          git push -f "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}" apk
+          git -c http.postBuffer=524288000 push -f "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}" apk
       # Y como versión descargable en la página del repositorio (pestaña Releases)
       - name: Publicar la versión
         env:

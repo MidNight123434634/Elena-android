@@ -29,10 +29,6 @@ android {
         release { signingConfig signingConfigs.jarvis }
     }
 
-    androidResources {
-        noCompress "conf", "mdl", "fst", "int", "mat", "txt", "uuid"  // el modelo de voz se lee tal cual
-    }
-
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_17
         targetCompatibility JavaVersion.VERSION_17
