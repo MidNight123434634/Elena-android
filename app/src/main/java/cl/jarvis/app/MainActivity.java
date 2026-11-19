@@ -164,6 +164,7 @@ public class MainActivity extends Activity {
     protected void onResume() {
         super.onResume();
         if (actualizador != null) actualizador.continuarSiEspera();
+        if (hilos != null) hilos.execute(() -> Memoria.entregar(this));
     }
 
     @Override
@@ -430,6 +431,37 @@ public class MainActivity extends Activity {
             } catch (Exception e) {
                 return "No entendí la orden para el teléfono.";
             }
+        }
+
+        // ------------------------------------------------ memoria del teléfono (cuando Jarvis no está conectado)
+        @JavascriptInterface
+        public String guardarEnMemoria(String texto, String tipo) {
+            return Memoria.agregarTexto(MainActivity.this, texto, tipo == null || tipo.isEmpty() ? "auto" : tipo);
+        }
+
+        @JavascriptInterface
+        public String guardarVozEnMemoria(String wavBase64) {
+            return Memoria.agregarAudio(MainActivity.this, android.util.Base64.decode(wavBase64, android.util.Base64.DEFAULT));
+        }
+
+        @JavascriptInterface
+        public String memoria() {
+            return Memoria.paraPantalla(MainActivity.this);
+        }
+
+        @JavascriptInterface
+        public int cantidadMemoria() {
+            return Memoria.cantidad(MainActivity.this);
+        }
+
+        @JavascriptInterface
+        public void borrarDeMemoria(String id) {
+            try { Memoria.borrar(MainActivity.this, Long.parseLong(id)); } catch (NumberFormatException ignorado) { }
+        }
+
+        @JavascriptInterface
+        public void entregarMemoria() {
+            hilos.execute(() -> Memoria.entregar(MainActivity.this));
         }
 
         @JavascriptInterface

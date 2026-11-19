@@ -14,6 +14,15 @@ header{display:flex;align-items:center;gap:.6rem;padding:.8rem 1rem .2rem}
 header h1{font-size:1.15rem;letter-spacing:.25em;margin:0;flex:1;font-weight:600}
 #punto{width:.6rem;height:.6rem;border-radius:50%;background:var(--suave)}
 #punto.ok{background:var(--verde)}#punto.mal{background:var(--rojo)}
+#chipMemoria{display:none;background:#2c2510;color:#ffd27a;border:0;border-radius:12px;padding:.25rem .6rem;font-size:.8rem}
+#memoria{position:fixed;inset:0;background:rgba(0,0,0,.6);display:none;align-items:flex-end;z-index:6}
+#memoria.abierto{display:flex}
+.pendiente{display:flex;gap:.5rem;align-items:flex-start;padding:.55rem 0;border-bottom:1px solid var(--borde)}
+.pendiente div{flex:1;font-size:.95rem;line-height:1.35}
+.pendiente small{display:block;color:var(--suave);font-size:.78rem}
+.pendiente button{background:none;border:0;color:var(--rojo);font-size:1.1rem}
+#nuevaIdea{width:100%;padding:.7rem;border-radius:10px;border:1px solid var(--borde);background:var(--fondo);color:var(--texto);font-size:1rem;min-height:4.5rem;resize:vertical;font-family:inherit}
+.dos{display:flex;gap:.5rem}.dos .boton{flex:1}
 .icono{background:none;border:0;color:var(--suave);font-size:1.4rem;padding:.3rem .5rem}
 #escena{position:relative;flex:0 0 auto;display:flex;justify-content:center}
 canvas{width:min(78vw,340px);height:min(70vw,300px)}
@@ -45,6 +54,8 @@ canvas{width:min(78vw,340px);height:min(70vw,300px)}
 <header>
   <span id="punto" title="Conexión con el PC"></span>
   <h1>JARVIS</h1>
+  <button id="chipMemoria" aria-label="Memoria del teléfono">📝 0</button>
+  <button class="icono" id="abrirMemoria" aria-label="Memoria del teléfono">📝</button>
   <button class="icono" id="abrirAjustes" aria-label="Ajustes">⚙</button>
 </header>
 <div id="escena"><canvas id="esfera" width="680" height="600"></canvas></div>
@@ -55,6 +66,19 @@ canvas{width:min(78vw,340px);height:min(70vw,300px)}
   <button id="enviar" aria-label="Enviar">➤</button>
   <button id="hablar" aria-label="Hablar">🎤</button>
 </div>
+
+<div id="memoria"><div class="hoja">
+  <h2>Memoria del teléfono</h2>
+  <p class="nota">Si Jarvis no está conectado, lo que le dices o escribes queda guardado aquí y se lo entrego solo cuando
+  vuelva la conexión. Las ideas van a su bloc «Ideas desde el teléfono»; las órdenes, Jarvis las hace al reconectar.
+  Para que algo sea idea, empiézalo con «idea» o «anota».</p>
+  <textarea id="nuevaIdea" placeholder="Escribe una idea o algo que Jarvis deba hacer después"></textarea>
+  <div class="dos"><button class="boton" id="guardarIdea">Guardar idea</button><button class="boton gris" id="guardarOrden">Guardar orden</button></div>
+  <h2 style="margin-top:1rem">En espera <span id="cuentaMemoria" class="nota"></span></h2>
+  <div id="listaMemoria"></div>
+  <button class="boton gris" id="entregarAhora">Entregar ahora a Jarvis</button>
+  <button class="boton gris" id="cerrarMemoria">Listo</button>
+</div></div>
 
 <div id="ajustes"><div class="hoja">
   <h2>Ajustes</h2>
@@ -157,6 +181,7 @@ revisarSegundoPlano();
 window.eventoEscucha=(quien,texto)=>{
   if(quien==='estado'){poner(texto,{escuchando:'Te escucho…',pensando:'Pensando…'}[texto]||'Toca el micrófono y habla');return;}
   anadir(quien==='aviso'?'aviso':quien,texto);
+  if(quien==='aviso')setTimeout(pintarMemoria,300);
 };
 function manejarTelefono(accion){
   let r='';
@@ -249,7 +274,13 @@ async function pedir(ruta,cuerpo,tipo){
   const bytes=typeof cuerpo==='string'?new TextEncoder().encode(cuerpo):new Uint8Array(await cuerpo.arrayBuffer());
   const d=await nativo(ruta,tipo,aBase64(bytes));
   if(d.estado_http===401)$('ajustes').classList.add('abierto');
-  if(d.sin_conexion){punto.className='mal';throw new Error('sin conexión');}
+  if(d.sin_conexion){
+    punto.className='mal';
+    // sin conexión: lo que dijiste o escribiste queda en la memoria del teléfono
+    if(ruta==='/preguntar'){try{anadir('aviso',JarvisNativo.guardarEnMemoria(JSON.parse(cuerpo).texto,'auto'));pintarMemoria();return{guardado:true};}catch(e){}}
+    if(ruta==='/oir'){anadir('aviso',JarvisNativo.guardarVozEnMemoria(aBase64(bytes)));pintarMemoria();return{guardado:true};}
+    throw new Error('sin conexión');
+  }
   punto.className='ok';
   return d;
 }
@@ -260,6 +291,7 @@ async function enviar(){
   try{
     const d=await pedir('/preguntar',JSON.stringify({texto:t}),'application/json');
     poner('esperando','Toca el micrófono y habla');
+    if(d.guardado)return;
     if(d.telefono){manejarTelefono(d.telefono);return;}
     anadir('jarvis',d.respuesta||d.error||'Sin respuesta');
     if(d.respuesta)decir(d.respuesta,d.audios);
@@ -333,7 +365,8 @@ async function mandarAudio(blob){
     const d=await pedir('/oir',blob,'audio/wav');
     if(d.oido)anadir('tu','🎤 '+d.oido);
     poner('esperando','Toca el micrófono y habla');
-    if(d.telefono){manejarTelefono(d.telefono);}
+    if(d.guardado){}
+    else if(d.telefono){manejarTelefono(d.telefono);}
     else{anadir('jarvis',d.respuesta||d.error||'Sin respuesta');if(d.respuesta)decir(d.respuesta,d.audios);}
   }catch(e){anadir('jarvis','No pude conectar con Jarvis. ¿Está abierto en el PC?');poner('error','Sin conexión');}
   boton.disabled=false;
@@ -345,7 +378,38 @@ if(!window.isSecureContext)sinMicrofono();
 async function revisar(){
   const d=await nativo('/estado','','');
   punto.className=d.ok?'ok':'mal';
+  if(d.ok&&JarvisNativo.cantidadMemoria()>0)JarvisNativo.entregarMemoria();
+  pintarMemoria();
 }
+// ------------------------------------------------------------ memoria del teléfono
+function pintarMemoria(){
+  const lista=JSON.parse(JarvisNativo.memoria()),chip=$('chipMemoria');
+  chip.style.display=lista.length?'inline-block':'none';chip.textContent='📝 '+lista.length+' en espera';
+  $('abrirMemoria').style.display=lista.length?'none':'inline-block';
+  $('cuentaMemoria').textContent=lista.length?'('+lista.length+')':'';
+  const caja=$('listaMemoria');caja.innerHTML='';
+  if(!lista.length){caja.innerHTML='<p class="nota">No hay nada esperando.</p>';return;}
+  for(const p of lista){
+    const fila=document.createElement('div');fila.className='pendiente';
+    const txt=document.createElement('div');txt.textContent=p.texto;
+    const info=document.createElement('small');info.textContent=({idea:'Idea',accion:'Orden',auto:'Jarvis decide'}[p.tipo]||'')+' · '+p.hora;
+    txt.appendChild(info);
+    const x=document.createElement('button');x.textContent='✕';x.setAttribute('aria-label','Borrar');
+    x.onclick=()=>{JarvisNativo.borrarDeMemoria(String(p.id));pintarMemoria();};
+    fila.append(txt,x);caja.appendChild(fila);
+  }
+}
+function guardarManual(tipo){
+  const t=$('nuevaIdea').value.trim();if(!t)return;
+  const r=JarvisNativo.guardarEnMemoria(t,tipo);$('nuevaIdea').value='';
+  anadir('aviso',tipo==='idea'?'Idea guardada en el teléfono.':'Orden guardada en el teléfono.');
+  pintarMemoria();if(punto.className==='ok')JarvisNativo.entregarMemoria();
+}
+$('guardarIdea').onclick=()=>guardarManual('idea');
+$('guardarOrden').onclick=()=>guardarManual('accion');
+$('abrirMemoria').onclick=$('chipMemoria').onclick=()=>{pintarMemoria();$('memoria').classList.add('abierto');};
+$('cerrarMemoria').onclick=()=>$('memoria').classList.remove('abierto');
+$('entregarAhora').onclick=()=>{JarvisNativo.entregarMemoria();anadir('aviso','Intentando entregar lo guardado…');setTimeout(pintarMemoria,4000);};
 revisar();setInterval(revisar,15000);
 revisarPermisos();enviarApps();
 // ------------------------------------------------------------ actualizarse sola (cada vez que se abre y cada 6 horas)

@@ -125,7 +125,8 @@ public class Escucha extends Service {
     // ------------------------------------------------------------------ el bucle de escucha
     private static final int TROZO = 1600;            // 0,1 segundos
     private static final int MAXIMO_RECIENTE = TASA * 15;
-    private volatile double ruido = 300;              // ruido de fondo, medido mientras espera «Jarvis»
+    private volatile double ruido = 300;
+    private long ultimaEntrega = 0;              // ruido de fondo, medido mientras espera «Jarvis»
 
     /** Lo último que se oyó (desde que empezó la frase actual), para no perder lo dicho junto a «Jarvis». */
     private final short[] reciente = new short[MAXIMO_RECIENTE];
@@ -193,6 +194,10 @@ public class Escucha extends Service {
                     despertador = nuevoDespertador();
                     oidas = 0;
                     reiniciar = false;
+                }
+                if (System.currentTimeMillis() - ultimaEntrega > 90_000) {   // cada minuto y medio: ¿volvió Jarvis?
+                    ultimaEntrega = System.currentTimeMillis();
+                    if (Memoria.cantidad(this) > 0) new Thread(() -> Memoria.entregar(this)).start();
                 }
                 medirRuido(rms(trozo, n));
                 guardarReciente(trozo, n);
@@ -322,6 +327,21 @@ public class Escucha extends Service {
                 avisar("jarvis", texto);
                 if (rapida || !reproducir(r.optJSONArray("audios"))) decirYEsperar(texto);
             }
+            new Thread(() -> Memoria.entregar(this)).start();   // hay conexión: entrega lo que quedó guardado
+        } catch (java.io.IOException e) {
+            if (e instanceof java.net.SocketTimeoutException && String.valueOf(e.getMessage()).toLowerCase().contains("read")) {
+                // el PC sí lo recibió pero se demoró demasiado: no se guarda (si no, lo haría dos veces)
+                String texto = "Jarvis se está demorando mucho en responder.";
+                avisar("jarvis", texto);
+                decirYEsperar(texto);
+                mostrarNotificacion("Di «Jarvis» para hablarme");
+                avisar("estado", "esperando");
+                return;
+            }
+            // sin conexión con el PC: queda guardado en el teléfono y se entrega cuando vuelva
+            String texto = Memoria.agregarAudio(this, wav(orden));
+            avisar("aviso", texto);
+            decirYEsperar("Jarvis no está conectado. Lo guardé y se lo paso cuando vuelva.");
         } catch (Exception e) {
             String texto = "No pude hablar con Jarvis en el PC. ¿Está abierto y NetBird conectado?";
             avisar("jarvis", texto);
