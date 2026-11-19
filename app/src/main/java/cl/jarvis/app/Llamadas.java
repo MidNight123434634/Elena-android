@@ -22,8 +22,8 @@ import java.util.Locale;
 import java.util.Set;
 
 /**
- * Filtro de llamadas: Android le pregunta a Jarvis por cada llamada entrante y Jarvis decide si la deja pasar.
- * Todo pasa en el teléfono (no se manda nada al PC). Solo funciona si el usuario elige a Jarvis como
+ * Filtro de llamadas: Android le pregunta a Elena por cada llamada entrante y Elena decide si la deja pasar.
+ * Todo pasa en el teléfono (no se manda nada al PC). Solo funciona si el usuario elige a Elena como
  * «app de identificación de llamadas y spam» (se pide desde ⚙ en la app).
  *
  * Reglas (se cambian en ⚙):

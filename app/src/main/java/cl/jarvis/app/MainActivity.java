@@ -47,10 +47,10 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 /**
- * Jarvis para el teléfono.
+ * Elena para el teléfono.
  *
- * La pantalla es la misma app web de Jarvis (en assets/index.html), servida desde el propio teléfono
- * en https://appassets.androidplatform.net (así el micrófono funciona). Las preguntas a Jarvis las hace
+ * La pantalla es la misma app web de Elena (en assets/index.html), servida desde el propio teléfono
+ * en https://appassets.androidplatform.net (así el micrófono funciona). Las preguntas a Elena las hace
  * esta parte nativa por HTTPS, confiando solo en el certificado de tu PC (res/raw/jarvis_ca.crt).
  */
 public class MainActivity extends Activity {
@@ -96,7 +96,7 @@ public class MainActivity extends Activity {
 
             @Override
             public boolean shouldOverrideUrlLoading(WebView vista, WebResourceRequest pedido) {
-                // solo se muestra la pantalla de Jarvis: ningún enlace lleva a otras páginas dentro de la app
+                // solo se muestra la pantalla de Elena: ningún enlace lleva a otras páginas dentro de la app
                 Uri url = pedido.getUrl();
                 return !"appassets.androidplatform.net".equals(url.getHost());
             }
@@ -138,7 +138,7 @@ public class MainActivity extends Activity {
             Escucha.iniciar(this);
         }
 
-        web.addJavascriptInterface(new Puente(), "JarvisNativo");
+        web.addJavascriptInterface(new Puente(), "ElenaNativo");
         web.loadUrl(INICIO);
     }
 
@@ -169,7 +169,7 @@ public class MainActivity extends Activity {
 
     @Override
     public void onBackPressed() {
-        moveTaskToBack(true);  // el botón atrás minimiza Jarvis en vez de cerrarlo
+        moveTaskToBack(true);  // el botón atrás minimiza Elena en vez de cerrarlo
     }
 
     @Override
@@ -273,7 +273,7 @@ public class MainActivity extends Activity {
             return Acciones.llamar(MainActivity.this, nombre);
         }
 
-        // ------------------------------------------------------------------ escuchar siempre («Jarvis»)
+        // ------------------------------------------------------------------ escuchar siempre («Elena»)
         @JavascriptInterface
         public void guardarConexion(String servidor, String clave) {
             Llamadas.preferencias(MainActivity.this).edit()
@@ -415,7 +415,7 @@ public class MainActivity extends Activity {
         @JavascriptInterface
         public void hablar(String texto) {
             if (Acciones.enLlamada(MainActivity.this)) return;  // en llamada no habla
-            if (vozLista && texto != null) voz.speak(texto, TextToSpeech.QUEUE_FLUSH, null, "jarvis");
+            if (vozLista && texto != null) voz.speak(texto, TextToSpeech.QUEUE_FLUSH, null, "elena");
         }
 
         @JavascriptInterface
@@ -423,7 +423,7 @@ public class MainActivity extends Activity {
             return Acciones.enLlamada(MainActivity.this);
         }
 
-        /** Cualquier orden para el teléfono que mandó Jarvis desde el PC (linterna, alarma, WhatsApp...). */
+        /** Cualquier orden para el teléfono que mandó Elena desde el PC (linterna, alarma, WhatsApp...). */
         @JavascriptInterface
         public String accionTelefono(String json) {
             try {
@@ -433,7 +433,7 @@ public class MainActivity extends Activity {
             }
         }
 
-        // ------------------------------------------------ memoria del teléfono (cuando Jarvis no está conectado)
+        // ------------------------------------------------ memoria del teléfono (cuando Elena no está conectada)
         @JavascriptInterface
         public String guardarEnMemoria(String texto, String tipo) {
             return Memoria.agregarTexto(MainActivity.this, texto, tipo == null || tipo.isEmpty() ? "auto" : tipo);
@@ -482,7 +482,7 @@ public class MainActivity extends Activity {
                 try {
                     json = enviar(servidor, ruta, tipo, cuerpoBase64, clave, voz);
                 } catch (Exception e) {
-                    json = "{\"error\":\"No pude conectar con Jarvis. ¿Está abierto en el PC y NetBird conectado?\","
+                    json = "{\"error\":\"No pude conectar con Elena. ¿Está abierto en el PC y NetBird conectado?\","
                             + "\"sin_conexion\":true}";
                 }
                 final String respuesta = JSONObject.quote(json);
@@ -492,7 +492,7 @@ public class MainActivity extends Activity {
         }
     }
 
-    /** Hace la petición a Jarvis (por HTTPS, confiando en el certificado de tu PC) y devuelve el JSON. */
+    /** Hace la petición a Elena (por HTTPS, confiando en el certificado de tu PC) y devuelve el JSON. */
     private static String enviar(String servidor, String ruta, String tipo, String cuerpoBase64,
                                  String clave, boolean voz) throws Exception {
         String base = servidor.trim();
@@ -504,7 +504,7 @@ public class MainActivity extends Activity {
         }
         HttpURLConnection conexion = (HttpURLConnection) new URL(base + ruta).openConnection();
         conexion.setConnectTimeout(8000);
-        conexion.setReadTimeout(180000);  // Jarvis puede tardar en pensar
+        conexion.setReadTimeout(180000);  // Elena puede tardar en pensar
         conexion.setRequestProperty("X-Jarvis", "1");
         conexion.setRequestProperty("X-Jarvis-Clave", clave == null ? "" : clave);
         conexion.setRequestProperty("X-Jarvis-Voz", voz ? "1" : "0");

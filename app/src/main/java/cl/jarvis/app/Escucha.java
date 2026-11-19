@@ -41,10 +41,10 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
 /**
- * Escucha siempre (con la pantalla apagada también) y se despierta al oír «Jarvis».
+ * Escucha siempre (con la pantalla apagada también) y se despierta al oír «Elena».
  *
- * La palabra «Jarvis» se reconoce DENTRO del teléfono, sin internet (Vosk). Solo después de oírla se graba la
- * orden y se manda a Jarvis en el PC (por NetBird), igual que con el botón del micrófono.
+ * La palabra «Elena» se reconoce DENTRO del teléfono, sin internet (Vosk). Solo después de oírla se graba la
+ * orden y se manda a Elena en el PC (por NetBird), igual que con el botón del micrófono.
  * Android exige mostrar una notificación fija mientras el micrófono está activo.
  */
 public class Escucha extends Service {
@@ -54,7 +54,7 @@ public class Escucha extends Service {
     static final String SERVIDOR = "conexion_servidor";
     static final String CLAVE = "conexion_clave";
     static final String VOZ_RAPIDA = "voz_rapida";               // responder con la voz del teléfono (más rápido)
-    private static final String CANAL = "escucha";
+    private static final String CANAL = "elena_escucha";
     private static final int TASA = 16000;
 
     /** La pantalla de la app se entera de lo que pasa (para mostrarlo en el chat). */
@@ -91,7 +91,7 @@ public class Escucha extends Service {
             stopSelf();
             return START_NOT_STICKY;
         }
-        mostrarNotificacion("Di «Jarvis» para hablarme");
+        mostrarNotificacion("Di «Elena» para hablarme");
         if (hilo == null) {
             activa = true;
             voz = new TextToSpeech(this, estado -> {
@@ -99,11 +99,11 @@ public class Escucha extends Service {
                 if (vozLista) { voz.setLanguage(new Locale("es", "ES")); voz.setSpeechRate(1.1f); }
             });
             avisar("aviso", "Preparando la escucha…");
-            StorageService.unpack(this, "model-en-us", "modelo_jarvis", m -> {
+            StorageService.unpack(this, "model-es", "modelo_elena", m -> {
                 modelo = m;
-                hilo = new Thread(this::bucle, "escucha-jarvis");
+                hilo = new Thread(this::bucle, "escucha-elena");
                 hilo.start();
-                avisar("aviso", "Te escucho: di «Jarvis» cuando me necesites.");
+                avisar("aviso", "Te escucho: di «Elena» cuando me necesites.");
             }, e -> {
                 avisar("aviso", "No pude preparar la escucha: " + e.getMessage());
                 stopSelf();
@@ -126,9 +126,9 @@ public class Escucha extends Service {
     private static final int TROZO = 1600;            // 0,1 segundos
     private static final int MAXIMO_RECIENTE = TASA * 15;
     private volatile double ruido = 300;
-    private long ultimaEntrega = 0;              // ruido de fondo, medido mientras espera «Jarvis»
+    private long ultimaEntrega = 0;              // ruido de fondo, medido mientras espera «Elena»
 
-    /** Lo último que se oyó (desde que empezó la frase actual), para no perder lo dicho junto a «Jarvis». */
+    /** Lo último que se oyó (desde que empezó la frase actual), para no perder lo dicho junto a «Elena». */
     private final short[] reciente = new short[MAXIMO_RECIENTE];
     private int largoReciente = 0;
     private long inicioReciente = 0;                  // en muestras desde que se creó el reconocedor
@@ -156,7 +156,7 @@ public class Escucha extends Service {
     }
 
     private Recognizer nuevoDespertador() throws java.io.IOException {
-        Recognizer r = new Recognizer(modelo, TASA, "[\"jarvis\", \"[unk]\"]");
+        Recognizer r = new Recognizer(modelo, TASA, "[\"elena\", \"[unk]\"]");
         r.setWords(true);
         largoReciente = 0;
         inicioReciente = 0;
@@ -184,7 +184,7 @@ public class Escucha extends Service {
                     mic = abrirMicrofono();
                     if (mic == null) { dormir(2000); continue; }
                     reiniciar = true;
-                    mostrarNotificacion("Di «Jarvis» para hablarme");
+                    mostrarNotificacion("Di «Elena» para hablarme");
                 }
                 int n = mic.read(trozo, 0, trozo.length);
                 if (n <= 0) continue;
@@ -195,7 +195,7 @@ public class Escucha extends Service {
                     oidas = 0;
                     reiniciar = false;
                 }
-                if (System.currentTimeMillis() - ultimaEntrega > 90_000) {   // cada minuto y medio: ¿volvió Jarvis?
+                if (System.currentTimeMillis() - ultimaEntrega > 90_000) {   // cada minuto y medio: ¿volvió Elena?
                     ultimaEntrega = System.currentTimeMillis();
                     if (Memoria.cantidad(this) > 0) new Thread(() -> Memoria.entregar(this)).start();
                 }
@@ -203,17 +203,17 @@ public class Escucha extends Service {
                 guardarReciente(trozo, n);
                 oidas += n;
                 if (despertador.acceptWaveForm(trozo, n)) {
-                    double fin = finDeJarvis(despertador.getResult());
+                    double fin = finDeElena(despertador.getResult());
                     if (fin >= 0) {
-                        // lo que dijiste después de «Jarvis» (un poquito antes, para no cortar la primera sílaba)
+                        // lo que dijiste después de «Elena» (un poquito antes, para no cortar la primera sílaba)
                         short[] resto = desdeReciente((long) ((fin - 0.15) * TASA));
                         atenderOrden(mic, trozo, resto);
-                        // se descarta lo que se juntó mientras Jarvis pensaba y hablaba (si no, se oiría a sí mismo)
+                        // se descarta lo que se juntó mientras Elena pensaba y hablaba (si no, se oiría a sí mismo)
                         cerrar(mic);
                         mic = abrirMicrofono();
                         reiniciar = true;
                     } else {
-                        inicioReciente = oidas;  // terminó una frase sin «Jarvis»: se olvida
+                        inicioReciente = oidas;  // terminó una frase sin «Elena»: se olvida
                         largoReciente = 0;
                     }
                 }
@@ -262,8 +262,8 @@ public class Escucha extends Service {
         return resto;
     }
 
-    /** Si el resultado trae «jarvis» con suficiente seguridad, devuelve el segundo en que terminó; si no, -1. */
-    private double finDeJarvis(String json) {
+    /** Si el resultado trae «elena» con suficiente seguridad, devuelve el segundo en que terminó; si no, -1. */
+    private double finDeElena(String json) {
         try {
             JSONArray palabras = new JSONObject(json).optJSONArray("result");
             if (palabras == null) return -1;
@@ -272,7 +272,7 @@ public class Escucha extends Service {
             double fin = -1;
             for (int i = 0; i < palabras.length(); i++) {
                 JSONObject p = palabras.getJSONObject(i);
-                if ("jarvis".equals(p.optString("word")) && p.optDouble("conf", 0) >= minimo) fin = p.optDouble("end", 0);
+                if ("elena".equals(p.optString("word")) && p.optDouble("conf", 0) >= minimo) fin = p.optDouble("end", 0);
             }
             return fin;
         } catch (Exception ignorado) {
@@ -294,11 +294,11 @@ public class Escucha extends Service {
     private void atenderOrden(AudioRecord mic, short[] trozo, short[] resto) {
         byte[] orden;
         if (segundosConVoz(resto) >= 0.3) {
-            // «Jarvis, abre WhatsApp» dicho de corrido: la orden ya está grabada; se sigue un momento por si continúas
+            // «Elena, abre WhatsApp» dicho de corrido: la orden ya está grabada; se sigue un momento por si continúas
             avisar("estado", "escuchando");
             orden = grabarOrden(mic, trozo, aBytes(resto), 0.6, 12);
         } else {
-            // solo dijo «Jarvis»: pitido y escucha al tiro (sin hablar encima de ti)
+            // solo dijo «Elena»: pitido y escucha al tiro (sin hablar encima de ti)
             pitido(ToneGenerator.TONE_PROP_BEEP);
             mostrarNotificacion("Te escucho…");
             avisar("estado", "escuchando");
@@ -306,7 +306,7 @@ public class Escucha extends Service {
         }
         if (orden == null) {
             pitido(ToneGenerator.TONE_PROP_NACK);
-            mostrarNotificacion("Di «Jarvis» para hablarme");
+            mostrarNotificacion("Di «Elena» para hablarme");
             avisar("estado", "esperando");
             return;
         }
@@ -331,23 +331,23 @@ public class Escucha extends Service {
         } catch (java.io.IOException e) {
             if (e instanceof java.net.SocketTimeoutException && String.valueOf(e.getMessage()).toLowerCase().contains("read")) {
                 // el PC sí lo recibió pero se demoró demasiado: no se guarda (si no, lo haría dos veces)
-                String texto = "Jarvis se está demorando mucho en responder.";
+                String texto = "Elena se está demorando mucho en responder.";
                 avisar("jarvis", texto);
                 decirYEsperar(texto);
-                mostrarNotificacion("Di «Jarvis» para hablarme");
+                mostrarNotificacion("Di «Elena» para hablarme");
                 avisar("estado", "esperando");
                 return;
             }
             // sin conexión con el PC: queda guardado en el teléfono y se entrega cuando vuelva
             String texto = Memoria.agregarAudio(this, wav(orden));
             avisar("aviso", texto);
-            decirYEsperar("Jarvis no está conectado. Lo guardé y se lo paso cuando vuelva.");
+            decirYEsperar("Elena no está conectada. Lo guardé y se lo paso cuando vuelva.");
         } catch (Exception e) {
-            String texto = "No pude hablar con Jarvis en el PC. ¿Está abierto y NetBird conectado?";
+            String texto = "No pude hablar con Elena en el PC. ¿Está abierto y NetBird conectado?";
             avisar("jarvis", texto);
             decirYEsperar(texto);
         }
-        mostrarNotificacion("Di «Jarvis» para hablarme");
+        mostrarNotificacion("Di «Elena» para hablarme");
         avisar("estado", "esperando");
     }
 
@@ -420,7 +420,7 @@ public class Escucha extends Service {
         return new JSONObject(datos.toString("UTF-8"));
     }
 
-    /** Reproduce la voz de Jarvis que mandó el PC. Devuelve false si no había audio. */
+    /** Reproduce la voz de Elena que mandó el PC. Devuelve false si no había audio. */
     private boolean reproducir(JSONArray audios) {
         if (audios == null || audios.length() == 0) return false;
         for (int i = 0; i < audios.length(); i++) {
@@ -477,7 +477,7 @@ public class Escucha extends Service {
     private void mostrarNotificacion(String texto) {
         NotificationManager nm = getSystemService(NotificationManager.class);
         if (Build.VERSION.SDK_INT >= 26 && nm.getNotificationChannel(CANAL) == null) {
-            NotificationChannel canal = new NotificationChannel(CANAL, "Escucha de Jarvis", NotificationManager.IMPORTANCE_LOW);
+            NotificationChannel canal = new NotificationChannel(CANAL, "Escucha de Elena", NotificationManager.IMPORTANCE_LOW);
             canal.setShowBadge(false);
             nm.createNotificationChannel(canal);
         }
@@ -487,7 +487,7 @@ public class Escucha extends Service {
                 new Intent(this, Escucha.class).setAction("detener"), inmutable);
         Notification.Builder b = Build.VERSION.SDK_INT >= 26 ? new Notification.Builder(this, CANAL) : new Notification.Builder(this);
         Notification n = b.setSmallIcon(android.R.drawable.ic_btn_speak_now)
-                .setContentTitle("Jarvis")
+                .setContentTitle("Elena")
                 .setContentText(texto)
                 .setOngoing(true)
                 .setContentIntent(abrir)

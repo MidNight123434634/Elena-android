@@ -4,7 +4,7 @@
 <meta name="theme-color" content="#0b0f1a">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<title>Jarvis</title>
+<title>Elena</title>
 <style>
 :root{--fondo:#0b0f1a;--panel:#141a2a;--borde:#232c44;--texto:#e8ecf5;--suave:#8a96b3;--azul:#2a6df4;--verde:#00e676;--ambar:#ffb300;--rojo:#ff5252}
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
@@ -53,7 +53,7 @@ canvas{width:min(78vw,340px);height:min(70vw,300px)}
 </style></head><body>
 <header>
   <span id="punto" title="Conexión con el PC"></span>
-  <h1>JARVIS</h1>
+  <h1>ELENA</h1>
   <button id="chipMemoria" aria-label="Memoria del teléfono">📝 0</button>
   <button class="icono" id="abrirMemoria" aria-label="Memoria del teléfono">📝</button>
   <button class="icono" id="abrirAjustes" aria-label="Ajustes">⚙</button>
@@ -62,51 +62,51 @@ canvas{width:min(78vw,340px);height:min(70vw,300px)}
 <div id="estado">Toca el micrófono y habla</div>
 <div id="chat"></div>
 <div id="barra">
-  <input id="texto" type="text" placeholder="Escríbele a Jarvis" enterkeyhint="send" autocomplete="off">
+  <input id="texto" type="text" placeholder="Escríbele a Elena" enterkeyhint="send" autocomplete="off">
   <button id="enviar" aria-label="Enviar">➤</button>
   <button id="hablar" aria-label="Hablar">🎤</button>
 </div>
 
 <div id="memoria"><div class="hoja">
   <h2>Memoria del teléfono</h2>
-  <p class="nota">Si Jarvis no está conectado, lo que le dices o escribes queda guardado aquí y se lo entrego solo cuando
-  vuelva la conexión. Las ideas van a su bloc «Ideas desde el teléfono»; las órdenes, Jarvis las hace al reconectar.
+  <p class="nota">Si Elena no está conectada, lo que le dices o escribes queda guardado aquí y se lo entrego solo cuando
+  vuelva la conexión. Las ideas van a su bloc «Ideas desde el teléfono»; las órdenes, Elena las hace al reconectar.
   Para que algo sea idea, empiézalo con «idea» o «anota».</p>
-  <textarea id="nuevaIdea" placeholder="Escribe una idea o algo que Jarvis deba hacer después"></textarea>
+  <textarea id="nuevaIdea" placeholder="Escribe una idea o algo que Elena deba hacer después"></textarea>
   <div class="dos"><button class="boton" id="guardarIdea">Guardar idea</button><button class="boton gris" id="guardarOrden">Guardar orden</button></div>
   <h2 style="margin-top:1rem">En espera <span id="cuentaMemoria" class="nota"></span></h2>
   <div id="listaMemoria"></div>
-  <button class="boton gris" id="entregarAhora">Entregar ahora a Jarvis</button>
+  <button class="boton gris" id="entregarAhora">Entregar ahora a Elena</button>
   <button class="boton gris" id="cerrarMemoria">Listo</button>
 </div></div>
 
 <div id="ajustes"><div class="hoja">
   <h2>Ajustes</h2>
-  <label for="servidor">Dirección de Jarvis</label>
+  <label for="servidor">Dirección de Elena</label>
   <input id="servidor" type="url" autocomplete="off" style="width:100%;padding:.7rem;border-radius:10px;border:1px solid var(--borde);background:var(--fondo);color:var(--texto);font-size:1rem">
-  <label for="clave">Clave de Jarvis (está en clave_movil.txt, en el PC)</label>
+  <label for="clave">Clave de Elena (está en clave_movil.txt, en el PC)</label>
   <input id="clave" type="password" autocomplete="current-password">
   <div class="fila"><span>Que me responda con voz</span><input id="voz" type="checkbox"></div>
   <div class="fila"><span>Voz rápida (la voz del teléfono en vez de la del PC)</span><input id="rapida" type="checkbox"></div>
   <div class="fila"><span>Dejar de escuchar solo cuando me callo</span><input id="auto" type="checkbox"></div>
   <button class="boton gris" id="permisoAvisos">Permitir leer notificaciones</button>
   <div class="fila"><span>Leer en voz alta las notificaciones nuevas</span><input id="leerSolo" type="checkbox"></div>
-  <p class="nota">Las notificaciones se quedan en el teléfono: Jarvis las lee aquí y no las manda al PC. Solo te dice de qué
+  <p class="nota">Las notificaciones se quedan en el teléfono: Elena las lee aquí y no las manda al PC. Solo te dice de qué
   app y de quién son, no el texto; para oír uno di «léeme el mensaje de Juan».</p>
   <p class="nota">En el teléfono también puedo: «abre WhatsApp», «enciende la linterna», «¿cuánta batería me queda?»,
   «sube el volumen», «pausa la música», «siguiente canción», «pon una alarma a las 7», «temporizador de 10 minutos»,
   «mándale un WhatsApp a Juan diciendo que voy en camino», «llévame a la Plaza de Armas», «abre el WiFi».
   Mientras estás en una llamada no hablo ni escucho.</p>
-  <p class="nota">La app se conecta a Jarvis por NetBird: deja NetBird encendido en el teléfono y Jarvis abierto en el PC.
+  <p class="nota">La app se conecta a Elena por NetBird: deja NetBird encendido en el teléfono y Elena abierto en el PC.
   Si estás en el WiFi de tu casa también puedes usar https://192.168.2.101:8766.</p>
   <h2 style="margin-top:1.2rem">Escuchar siempre</h2>
-  <div class="fila"><span>Despertar diciendo «Jarvis» (también con la pantalla apagada)</span><input id="siempre" type="checkbox"></div>
-  <div class="fila"><span>Sensibilidad para oír «Jarvis»</span>
+  <div class="fila"><span>Despertar diciendo «Elena» (también con la pantalla apagada)</span><input id="siempre" type="checkbox"></div>
+  <div class="fila"><span>Sensibilidad para oír «Elena»</span>
     <select id="sensibilidad" style="background:var(--fondo);color:var(--texto);border:1px solid var(--borde);border-radius:8px;padding:.3rem">
       <option value="1">Estricta</option><option value="2">Normal</option><option value="3">Sensible</option></select></div>
   <button class="boton gris" id="segundoPlano">Abrir apps con la pantalla en otra app</button>
-  <p class="nota">La palabra «Jarvis» se reconoce dentro del teléfono, sin internet. Solo lo que dices después se manda a
-  Jarvis en el PC. Mientras escucha, Android muestra una notificación fija (ahí también puedes detenerla). Gasta algo
+  <p class="nota">La palabra «Elena» se reconoce dentro del teléfono, sin internet. Solo lo que dices después se manda a
+  Elena en el PC. Mientras escucha, Android muestra una notificación fija (ahí también puedes detenerla). Gasta algo
   más de batería. Si se activa sola sin llamarla, ponla en «Estricta»; si no te oye, en «Sensible».</p>
   <h2 style="margin-top:1.2rem">Llamadas</h2>
   <button class="boton gris" id="filtroLlamadas">Activar filtro de llamadas spam</button>
@@ -151,7 +151,7 @@ leerSolo.addEventListener('change',()=>JarvisNativo.leerNotificacionesSolo(leerS
 document.addEventListener('visibilitychange',()=>{if(!document.hidden){revisarPermisos();enviarApps();}});
 function hablarTelefono(texto){
   if(!voz.checked||JarvisNativo.enLlamada())return;
-  poner('hablando','Jarvis está hablando');JarvisNativo.hablar(texto);
+  poner('hablando','Elena está hablando');JarvisNativo.hablar(texto);
   setTimeout(()=>{if(estado==='hablando')poner('esperando','Toca el micrófono y habla');},Math.min(15000,1200+texto.length*70));
 }
 const AJUSTES_LLAMADAS={ll809:'llamadas_bloquear_809',llOcultos:'llamadas_bloquear_ocultos',llDesconocidos:'llamadas_bloquear_desconocidos',llAnunciar:'llamadas_anunciar'};
@@ -190,7 +190,7 @@ function manejarTelefono(accion){
   if(r){anadir('jarvis',r);hablarTelefono(r);}
 }
 let appsEnviadas=0;
-async function enviarApps(){   // Jarvis en el PC necesita saber qué apps hay para reconocer «abre ...»
+async function enviarApps(){   // Elena en el PC necesita saber qué apps hay para reconocer «abre ...»
   if(Date.now()-appsEnviadas<60000)return;
   appsEnviadas=Date.now();
   try{await nativo('/telefono/apps','application/json',aBase64(new TextEncoder().encode(JSON.stringify({apps:JSON.parse(JarvisNativo.appsInstaladas())}))));}
@@ -209,7 +209,7 @@ const COLORES={esperando:'#2a6df4',escuchando:'#ff5252',pensando:'#ffb300',habla
 let estado='esperando';
 function poner(e,txt){estado=e;estadoTxt.textContent=txt||'';}
 
-// ------------------------------------------------------------ audio: voz de Jarvis y nivel para la esfera
+// ------------------------------------------------------------ audio: voz de Elena y nivel para la esfera
 let ctxAudio=null,analizador=null,datosNivel=null,nivelMic=0;
 const reproductor=new Audio();reproductor.crossOrigin='anonymous';
 let cola=[];
@@ -233,7 +233,7 @@ function siguiente(){
   if(!cola.length){if(estado==='hablando')poner('esperando','Toca el micrófono y habla');return;}
   const a=cola.shift();
   reproductor.src='data:'+a.tipo+';base64,'+a.datos;
-  poner('hablando','Jarvis está hablando');
+  poner('hablando','Elena está hablando');
   reproductor.play().catch(siguiente);
 }
 function decir(respuesta,audios){
@@ -242,7 +242,7 @@ function decir(respuesta,audios){
   if(audios&&audios.length){cola=audios.slice();siguiente();return;}
   if('speechSynthesis' in window){
     const u=new SpeechSynthesisUtterance(respuesta);u.lang='es-ES';
-    u.onstart=()=>poner('hablando','Jarvis está hablando');
+    u.onstart=()=>poner('hablando','Elena está hablando');
     u.onend=()=>poner('esperando','Toca el micrófono y habla');
     speechSynthesis.cancel();speechSynthesis.speak(u);
   }
@@ -295,7 +295,7 @@ async function enviar(){
     if(d.telefono){manejarTelefono(d.telefono);return;}
     anadir('jarvis',d.respuesta||d.error||'Sin respuesta');
     if(d.respuesta)decir(d.respuesta,d.audios);
-  }catch(e){anadir('jarvis','No pude conectar con Jarvis. ¿Está abierto en el PC?');poner('error','Sin conexión');}
+  }catch(e){anadir('jarvis','No pude conectar con Elena. ¿Está abierto en el PC?');poner('error','Sin conexión');}
 }
 $('enviar').onclick=enviar;
 texto.addEventListener('keydown',e=>{if(e.key==='Enter')enviar();});
@@ -368,7 +368,7 @@ async function mandarAudio(blob){
     if(d.guardado){}
     else if(d.telefono){manejarTelefono(d.telefono);}
     else{anadir('jarvis',d.respuesta||d.error||'Sin respuesta');if(d.respuesta)decir(d.respuesta,d.audios);}
-  }catch(e){anadir('jarvis','No pude conectar con Jarvis. ¿Está abierto en el PC?');poner('error','Sin conexión');}
+  }catch(e){anadir('jarvis','No pude conectar con Elena. ¿Está abierto en el PC?');poner('error','Sin conexión');}
   boton.disabled=false;
 }
 boton.onclick=()=>{if(grabando)terminar();else empezar();};
@@ -392,7 +392,7 @@ function pintarMemoria(){
   for(const p of lista){
     const fila=document.createElement('div');fila.className='pendiente';
     const txt=document.createElement('div');txt.textContent=p.texto;
-    const info=document.createElement('small');info.textContent=({idea:'Idea',accion:'Orden',auto:'Jarvis decide'}[p.tipo]||'')+' · '+p.hora;
+    const info=document.createElement('small');info.textContent=({idea:'Idea',accion:'Orden',auto:'Elena decide'}[p.tipo]||'')+' · '+p.hora;
     txt.appendChild(info);
     const x=document.createElement('button');x.textContent='✕';x.setAttribute('aria-label','Borrar');
     x.onclick=()=>{JarvisNativo.borrarDeMemoria(String(p.id));pintarMemoria();};

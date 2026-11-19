@@ -28,17 +28,17 @@ import java.util.List;
 import java.util.Locale;
 
 /**
- * La «segunda memoria» del teléfono: si Jarvis (el PC) no está disponible, lo que le dices o escribes queda
+ * La «segunda memoria» del teléfono: si Elena (el PC) no está disponible, lo que le dices o escribes queda
  * guardado aquí, en el teléfono, y se le entrega solo cuando vuelve la conexión.
- *  - Ideas («idea: ...», «anota ...») -> Jarvis las guarda en el bloc «Ideas desde el teléfono».
- *  - Órdenes («crea una planilla de ventas») -> Jarvis las hace al reconectar.
+ *  - Ideas («idea: ...», «anota ...») -> Elena las guarda en el bloc «Ideas desde el teléfono».
+ *  - Órdenes («crea una planilla de ventas») -> Elena las hace al reconectar.
  */
 final class Memoria {
 
     private Memoria() { }
 
     private static final String ARCHIVO = "memoria.json";
-    private static final String CANAL = "memoria";
+    private static final String CANAL = "elena_memoria";
     private static final int MAXIMO = 200;
     private static volatile boolean entregando = false;
 
@@ -71,13 +71,13 @@ final class Memoria {
 
     static int cantidad(Context c) { return lista(c).length(); }
 
-    /** Guarda algo escrito. tipo: "idea", "accion" o "auto" (Jarvis decide por las palabras). */
+    /** Guarda algo escrito. tipo: "idea", "accion" o "auto" (Elena decide por las palabras). */
     static synchronized String agregarTexto(Context c, String texto, String tipo) {
         texto = texto == null ? "" : texto.trim();
         if (texto.isEmpty()) return "";
         try {
             JSONArray l = lista(c);
-            if (l.length() >= MAXIMO) return "La memoria del teléfono está llena (" + MAXIMO + " cosas). Conéctame a Jarvis para vaciarla.";
+            if (l.length() >= MAXIMO) return "La memoria del teléfono está llena (" + MAXIMO + " cosas). Conéctame a Elena para vaciarla.";
             l.put(new JSONObject().put("id", System.currentTimeMillis()).put("tipo", tipo).put("texto", texto).put("hora", ahora()));
             guardarLista(c, l);
             return confirmacion(c, tipo);
@@ -90,7 +90,7 @@ final class Memoria {
     static synchronized String agregarAudio(Context c, byte[] wav) {
         try {
             JSONArray l = lista(c);
-            if (l.length() >= MAXIMO) return "La memoria del teléfono está llena. Conéctame a Jarvis para vaciarla.";
+            if (l.length() >= MAXIMO) return "La memoria del teléfono está llena. Conéctame a Elena para vaciarla.";
             long id = System.currentTimeMillis();
             String nombre = "voz_" + id + ".wav";
             try (FileOutputStream f = new FileOutputStream(new File(carpeta(c), nombre))) { f.write(wav); }
@@ -105,7 +105,7 @@ final class Memoria {
     private static String confirmacion(Context c, String tipo) {
         int n = cantidad(c);
         String que = tipo.equals("idea") ? "tu idea" : tipo.equals("accion") ? "la orden" : "lo que dijiste";
-        return "Jarvis no está conectado: guardé " + que + " en el teléfono y se la entrego cuando vuelva la conexión"
+        return "Elena no está conectada: guardé " + que + " en el teléfono y se la entrego cuando vuelva la conexión"
                 + (n > 1 ? " (tengo " + n + " cosas esperando)." : ".");
     }
 
@@ -141,7 +141,7 @@ final class Memoria {
         return salida.toString();
     }
 
-    // ------------------------------------------------------------------ entregar a Jarvis
+    // ------------------------------------------------------------------ entregar a Elena
     /** Intenta entregar todo lo guardado. Se llama en segundo plano. Devuelve cuántas cosas entregó. */
     static int entregar(Context c) {
         if (entregando || cantidad(c) == 0) return 0;
@@ -161,7 +161,7 @@ final class Memoria {
                 try {
                     resultado = entregarUno(c, base, clave, o);
                 } catch (java.io.IOException | IllegalStateException e) {
-                    break;  // sin conexión, Jarvis cerrado o clave mala: se vuelve a intentar más tarde
+                    break;  // sin conexión, Elena cerrado o clave mala: se vuelve a intentar más tarde
                 } catch (Exception e) {
                     resultado = "No pude entregar algo que guardaste (" + o.optString("hora") + ").";
                 }
@@ -191,7 +191,7 @@ final class Memoria {
                 pedido.toString().getBytes(StandardCharsets.UTF_8), clave);
         JSONObject d;
         if (r.codigo == 404) {
-            // Jarvis en el PC todavía no conoce la memoria: se le manda como si se lo dijeras ahora
+            // Elena en el PC todavía no conoce la memoria: se le manda como si se lo dijeras ahora
             if (audio != null) {
                 r = enviar(base + "/oir", "audio/wav", audio, clave);
             } else {
@@ -202,7 +202,7 @@ final class Memoria {
             }
         }
         if (r.codigo == 401) throw new IllegalStateException("clave incorrecta");
-        if (r.codigo >= 500) return "No pude atender algo que guardaste (" + o.optString("hora") + "): Jarvis tuvo un problema.";
+        if (r.codigo >= 500) return "No pude atender algo que guardaste (" + o.optString("hora") + "): Elena tuvo un problema.";
         d = new JSONObject(r.cuerpo);
         String dicho = d.optString("texto", d.optString("oido", o.optString("texto")));
         if (d.has("telefono")) {
@@ -214,7 +214,7 @@ final class Memoria {
     }
 
     private static void avisarEntrega(Context c, int n, List<String> resultados) {
-        String titulo = n == 1 ? "Jarvis recibió 1 cosa que dejaste guardada" : "Jarvis recibió " + n + " cosas que dejaste guardadas";
+        String titulo = n == 1 ? "Elena recibió 1 cosa que dejaste guardada" : "Elena recibió " + n + " cosas que dejaste guardadas";
         Escucha.Oyente o = Escucha.oyente;
         if (o != null) {
             o.evento("aviso", titulo + ".");
@@ -223,7 +223,7 @@ final class Memoria {
         try {
             NotificationManager nm = c.getSystemService(NotificationManager.class);
             if (Build.VERSION.SDK_INT >= 26 && nm.getNotificationChannel(CANAL) == null) {
-                nm.createNotificationChannel(new NotificationChannel(CANAL, "Memoria de Jarvis", NotificationManager.IMPORTANCE_DEFAULT));
+                nm.createNotificationChannel(new NotificationChannel(CANAL, "Memoria de Elena", NotificationManager.IMPORTANCE_DEFAULT));
             }
             PendingIntent abrir = PendingIntent.getActivity(c, 11, new Intent(c, MainActivity.class), PendingIntent.FLAG_IMMUTABLE);
             android.app.Notification.Builder b = Build.VERSION.SDK_INT >= 26

@@ -18,7 +18,7 @@ import java.net.HttpURLConnection;
 import java.net.URL;
 
 /**
- * Actualiza la app sola: le pregunta a Jarvis (en el PC) qué versión tiene, y si hay una más nueva la
+ * Actualiza la app sola: le pregunta a Elena (en el PC) qué versión tiene, y si hay una más nueva la
  * descarga e instala. Android siempre muestra un aviso para confirmar la instalación (eso no se puede saltar).
  */
 class Actualizador {
@@ -62,7 +62,7 @@ class Actualizador {
             if (Build.VERSION.SDK_INT >= 26 && !actividad.getPackageManager().canRequestPackageInstalls()) {
                 servidorPendiente = servidor;
                 clavePendiente = clave;
-                aviso.decir("Hay una versión nueva de la app. Para que se actualice sola, permite que Jarvis instale "
+                aviso.decir("Hay una versión nueva de la app. Para que se actualice sola, permite que Elena instale "
                         + "apps (activa «Permitir de esta fuente») y vuelve a la app.");
                 actividad.runOnUiThread(() -> actividad.startActivity(new Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
                         Uri.parse("package:" + actividad.getPackageName()))));
@@ -125,7 +125,7 @@ class Actualizador {
         conexion.setRequestProperty("X-Jarvis", "1");
         conexion.setRequestProperty("X-Jarvis-Clave", clave == null ? "" : clave);
         int codigo = conexion.getResponseCode();
-        if (codigo != 200) throw new IllegalStateException("Jarvis respondió " + codigo);
+        if (codigo != 200) throw new IllegalStateException("Elena respondió " + codigo);
         try (InputStream entrada = conexion.getInputStream()) {
             ByteArrayOutputStream datos = new ByteArrayOutputStream();
             byte[] trozo = new byte[65536];

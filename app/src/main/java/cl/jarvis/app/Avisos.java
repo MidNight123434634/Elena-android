@@ -93,7 +93,7 @@ public class Avisos extends NotificationListenerService {
     }
 
     private void decir(final String frase) {
-        if (Acciones.enLlamada(this)) return;  // en llamada Jarvis no habla
+        if (Acciones.enLlamada(this)) return;  // en llamada Elena no habla
         if (voz == null) {
             voz = new TextToSpeech(this, estado -> {
                 vozLista = estado == TextToSpeech.SUCCESS;

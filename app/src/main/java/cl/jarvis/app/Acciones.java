@@ -30,12 +30,12 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
-/** Lo que Jarvis puede hacer en el propio teléfono. Lo usan la pantalla y la escucha con «Jarvis». */
+/** Lo que Elena puede hacer en el propio teléfono. Lo usan la pantalla y la escucha con «Elena». */
 final class Acciones {
 
     private Acciones() { }
 
-    /** Hace la acción que mandó Jarvis desde el PC y devuelve lo que hay que decir. */
+    /** Hace la acción que mandó Elena desde el PC y devuelve lo que hay que decir. */
     static String ejecutar(Context c, JSONObject accion) {
         String tipo = accion.optString("accion");
         try {
@@ -67,7 +67,7 @@ final class Acciones {
         return t.toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9 ]", " ").replaceAll("\\s+", " ").trim();
     }
 
-    /** ¿Hay una llamada en curso (normal, WhatsApp, Meet...)? Mientras tanto Jarvis no habla ni escucha. */
+    /** ¿Hay una llamada en curso (normal, WhatsApp, Meet...)? Mientras tanto Elena no habla ni escucha. */
     static boolean enLlamada(Context c) {
         AudioManager audio = c.getSystemService(AudioManager.class);
         if (audio == null) return false;
@@ -203,7 +203,7 @@ final class Acciones {
         if (segundos <= 0) return "¿De cuánto tiempo pongo el temporizador?";
         Intent i = new Intent(AlarmClock.ACTION_SET_TIMER)
                 .putExtra(AlarmClock.EXTRA_LENGTH, segundos).putExtra(AlarmClock.EXTRA_SKIP_UI, true)
-                .putExtra(AlarmClock.EXTRA_MESSAGE, "Jarvis");
+                .putExtra(AlarmClock.EXTRA_MESSAGE, "Elena");
         try {
             abrir(c, i);
         } catch (Exception e) {

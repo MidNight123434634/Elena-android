@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- La app confía en los sitios normales y, además, en el certificado de tu PC (la autoridad de la ferretería).
-     Así se conecta a Jarvis por NetBird con conexión cifrada, sin instalar nada en el teléfono. -->
+     Así se conecta a Elena por NetBird con conexión cifrada, sin instalar nada en el teléfono. -->
 <network-security-config>
     <base-config cleartextTrafficPermitted="false">
         <trust-anchors>
