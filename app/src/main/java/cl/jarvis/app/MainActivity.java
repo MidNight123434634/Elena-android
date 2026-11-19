@@ -138,7 +138,12 @@ public class MainActivity extends Activity {
             Escucha.iniciar(this);
         }
 
-        web.addJavascriptInterface(new Puente(), "ElenaNativo");
+        // El HTML anterior todavía referencia JarvisNativo. Publica el mismo puente con ambos
+        // nombres mientras se migra la interfaz; si falta el alias, el primer error JS detiene
+        // todo el script y deja sin respuesta los botones de ajustes, chat y micrófono.
+        Puente puente = new Puente();
+        web.addJavascriptInterface(puente, "ElenaNativo");
+        web.addJavascriptInterface(puente, "JarvisNativo");
         web.loadUrl(INICIO);
     }
 
