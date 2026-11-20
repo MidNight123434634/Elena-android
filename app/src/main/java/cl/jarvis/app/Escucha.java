@@ -61,6 +61,7 @@ public class Escucha extends Service {
     interface Oyente { void evento(String quien, String texto); }
     static volatile Oyente oyente;
     private static volatile boolean pausada = false;
+    private static volatile boolean vozPantalla = false;
     private static volatile boolean activa = false;
     private static volatile boolean microfonoLibre = true;
     private Microfono ruta;
@@ -74,8 +75,15 @@ public class Escucha extends Service {
 
     static boolean activa() { return activa; }
 
+    static synchronized void prepararVozLocal(Context c) {
+        SharedPreferences pref = Llamadas.preferencias(c);
+        if (!pref.getBoolean("voz_expresiva_pc_configurada", false))
+            pref.edit().putBoolean(VOZ_RAPIDA, false).putBoolean("voz_expresiva_pc_configurada", true).apply();
+    }
+
     /** Mientras se usa el botón del micrófono de la app, la escucha se pausa (el micrófono es uno solo). */
     static void pausar(boolean si) { pausada = si; }
+    static void vozPantalla(boolean si) { vozPantalla = si; }
     static boolean esperarMicrofonoLibre() {
         long hasta = android.os.SystemClock.elapsedRealtime() + 2500;
         while (activa && !microfonoLibre && android.os.SystemClock.elapsedRealtime() < hasta)
@@ -95,6 +103,7 @@ public class Escucha extends Service {
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
+        prepararVozLocal(this);
         if (intent != null && "detener".equals(intent.getAction())) {
             Llamadas.preferencias(this).edit().putBoolean(ESCUCHAR_SIEMPRE, false).apply();
             stopSelf();
@@ -143,7 +152,7 @@ public class Escucha extends Service {
     private long inicioReciente = 0;                  // en muestras desde que se creó el reconocedor
 
     private AudioRecord abrirMicrofono() {
-        if (!seguir || pausada) return null;
+        if (!seguir || pausada || vozPantalla) return null;
         ruta = Microfono.obtener(this);
         ruta.adquirir("servicio");
         ruta.esperarRuta();
@@ -197,7 +206,7 @@ public class Escucha extends Service {
         try {
             despertador = nuevoDespertador();
             while (seguir) {
-                if (pausada) {
+                if (pausada || vozPantalla) {
                     if (mic != null) { cerrar(mic); mic = null; reiniciar = true; }
                     dormir(50);
                     continue;
@@ -221,7 +230,7 @@ public class Escucha extends Service {
                 }
                 int n = mic.read(trozo, 0, trozo.length);
                 if (n <= 0) { cerrar(mic); mic = null; dormir(300); continue; }
-                if (pausada) { reiniciar = true; continue; }   // la pantalla está usando el micrófono
+                if (pausada || vozPantalla) { reiniciar = true; continue; }
                 if (reiniciar) {
                     despertador.close();
                     despertador = nuevoDespertador();
@@ -347,7 +356,7 @@ public class Escucha extends Service {
         }
         mostrarNotificacion("Pensando…");
         avisar("estado", "pensando");
-        boolean rapida = Llamadas.preferencias(this).getBoolean(VOZ_RAPIDA, true);
+        boolean rapida = Llamadas.preferencias(this).getBoolean(VOZ_RAPIDA, false);
         try {
             JSONObject r = preguntar(wav(orden), !rapida);
             if (r.optString("oido").length() > 0) avisar("tu", "🎤 " + r.optString("oido"));
@@ -404,7 +413,7 @@ public class Escucha extends Service {
         boolean hablo = antes != null;
         double finSilencio = antes != null ? espera : 1.0;
         while (seguir && tiempo < maximo && mic != null) {
-            if (pausada || Acciones.enLlamada(this) || ruta.revision() != revisionRuta) return null;
+            if (pausada || vozPantalla || Acciones.enLlamada(this) || ruta.revision() != revisionRuta) return null;
             int n = mic.read(trozo, 0, trozo.length);
             if (n <= 0) return null;
             double nivel = rms(trozo, n);
@@ -459,10 +468,12 @@ public class Escucha extends Service {
     /** Reproduce la voz de Elena que mandó el PC. Devuelve false si no había audio. */
     private boolean reproducir(JSONArray audios) {
         if (audios == null || audios.length() == 0) return false;
+        boolean sono = false;
         for (int i = 0; i < audios.length(); i++) {
             if (Acciones.enLlamada(this)) return true;  // empezó una llamada: se calla
             JSONObject a = audios.optJSONObject(i);
             if (a == null) continue;
+            MediaPlayer reproductor = new MediaPlayer();
             try {
                 String tipo = a.optString("tipo", "audio/wav");
                 File archivo = new File(getCacheDir(), "voz_" + i + (tipo.contains("mpeg") ? ".mp3" : ".wav"));
@@ -470,17 +481,17 @@ public class Escucha extends Service {
                     f.write(Base64.decode(a.optString("datos"), Base64.DEFAULT));
                 }
                 CountDownLatch fin = new CountDownLatch(1);
-                MediaPlayer reproductor = new MediaPlayer();
+                java.util.concurrent.atomic.AtomicBoolean correcto = new java.util.concurrent.atomic.AtomicBoolean(true);
                 reproductor.setDataSource(archivo.getPath());
                 reproductor.setOnCompletionListener(m -> fin.countDown());
-                reproductor.setOnErrorListener((m, x, y) -> { fin.countDown(); return true; });
+                reproductor.setOnErrorListener((m, x, y) -> { correcto.set(false); fin.countDown(); return true; });
                 reproductor.prepare();
                 reproductor.start();
-                fin.await(60, TimeUnit.SECONDS);
-                reproductor.release();
+                sono |= fin.await(60, TimeUnit.SECONDS) && correcto.get();
             } catch (Exception ignorado) { }
+            finally { reproductor.release(); }
         }
-        return true;
+        return sono;
     }
 
     private void decirYEsperar(String texto) {

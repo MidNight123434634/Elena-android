@@ -22,6 +22,11 @@ GitHub la arma sola con cada cambio (`.github/workflows/apk.yml`). El resultado 
 **Actions**, como archivo `Elena-apk`.
 
 ## Instalar en el teléfono
+La app usa por defecto la voz local del PC para las respuestas de conversación. En Ajustes,
+activa «Usar la voz rápida del teléfono» para volver al sintetizador de Android.
+La voz del PC requiere que Elena esté abierta y accesible por NetBird; no utiliza una API de voz de pago.
+Las acciones locales y las notificaciones conservan la voz del teléfono.
+
 1. Descarga `Jarvis.apk` en el teléfono. El nombre del archivo se conserva para que la actualización automática siga siendo compatible.
 2. Ábrela y, si Android lo pide, permite «Instalar apps desconocidas» para el navegador o el administrador de archivos.
 3. Abre Elena, toca ⚙ y escribe la clave (está en `clave_movil.txt` en el PC).

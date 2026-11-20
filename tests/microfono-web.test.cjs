@@ -14,6 +14,7 @@ function entorno({aviso='',fallo=false}={}) {
     window:{isSecureContext:true},document:{addEventListener(){}},
     navigator:{mediaDevices:{async getUserMedia(){eventos.push('captura');if(fallo)throw Error('denegado');return {getTracks:()=>[track],getAudioTracks:()=>[track]};}}},
     JarvisNativo:{prepararMicrofono(){eventos.push('preparar');return aviso;},revisionMicrofono:()=>revision,
+      reproduciendoVoz(){},
       pausarEscucha(si){eventos.push(si?'pausar':'reanudar');}},
     audio:()=>ctx,reproductor:{pause(){}},cola:[],nivelMic:0,
     boton:{disabled:false,classList:{add(){},remove(){}},textContent:''},auto:{checked:true},

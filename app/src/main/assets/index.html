@@ -87,7 +87,8 @@ canvas{width:min(78vw,340px);height:min(70vw,300px)}
   <label for="clave">Clave de Elena (está en clave_movil.txt, en el PC)</label>
   <input id="clave" type="password" autocomplete="current-password">
   <div class="fila"><span>Que me responda con voz</span><input id="voz" type="checkbox"></div>
-  <div class="fila"><span>Voz rápida (la voz del teléfono en vez de la del PC)</span><input id="rapida" type="checkbox"></div>
+  <div class="fila"><span>Usar la voz rápida del teléfono</span><input id="rapida" type="checkbox"></div>
+  <p class="ayuda">Desactivada: usa la voz expresiva generada en tu PC, sin servicios de pago. Requiere conexión con Elena; si no llega audio, se usa la voz del teléfono.</p>
   <div class="fila"><span>Dejar de escuchar solo cuando me callo</span><input id="auto" type="checkbox"></div>
   <button class="boton gris" id="permisoAvisos">Permitir leer notificaciones</button>
   <div class="fila"><span>Leer en voz alta las notificaciones nuevas</span><input id="leerSolo" type="checkbox"></div>
@@ -212,7 +213,7 @@ function poner(e,txt){estado=e;estadoTxt.textContent=txt||'';}
 // ------------------------------------------------------------ audio: voz de Elena y nivel para la esfera
 let ctxAudio=null,analizador=null,datosNivel=null,nivelMic=0;
 const reproductor=new Audio();reproductor.crossOrigin='anonymous';
-let cola=[];
+let cola=[],textoRespaldoVoz='',reprodujoVoz=false;
 function audio(){
   if(!ctxAudio){
     const C=window.AudioContext||window.webkitAudioContext;if(!C)return null;
@@ -230,22 +231,24 @@ function audio(){
 reproductor.addEventListener('ended',siguiente);
 reproductor.addEventListener('error',siguiente);
 function siguiente(){
-  if(!cola.length){if(estado==='hablando')poner('esperando','Toca el micrófono y habla');return;}
+  if(!cola.length){
+    JarvisNativo.reproduciendoVoz(false);
+    if(estado==='hablando')poner('esperando','Toca el micrófono y habla');
+    const respaldo=textoRespaldoVoz;textoRespaldoVoz='';
+    if(!reprodujoVoz&&respaldo)hablarTelefono(respaldo);
+    return;
+  }
   const a=cola.shift();
   reproductor.src='data:'+a.tipo+';base64,'+a.datos;
   poner('hablando','Elena está hablando');
-  reproductor.play().catch(siguiente);
+  JarvisNativo.reproduciendoVoz(true);
+  reproductor.play().then(()=>{reprodujoVoz=true;}).catch(siguiente);
 }
 function decir(respuesta,audios){
   if(!voz.checked||JarvisNativo.enLlamada())return;
   if(rapida.checked){hablarTelefono(respuesta);return;}
-  if(audios&&audios.length){cola=audios.slice();siguiente();return;}
-  if('speechSynthesis' in window){
-    const u=new SpeechSynthesisUtterance(respuesta);u.lang='es-ES';
-    u.onstart=()=>poner('hablando','Elena está hablando');
-    u.onend=()=>poner('esperando','Toca el micrófono y habla');
-    speechSynthesis.cancel();speechSynthesis.speak(u);
-  }
+  if(audios&&audios.length){textoRespaldoVoz=respuesta;reprodujoVoz=false;cola=audios.slice();siguiente();return;}
+  hablarTelefono(respuesta);
 }
 function nivelVoz(){
   if(estado==='escuchando')return nivelMic;
@@ -326,6 +329,7 @@ async function empezar(){
   }
   preparandoMic=false;boton.disabled=false;ruidoMic=.002;
   reproductor.pause();cola=[];if('speechSynthesis' in window)speechSynthesis.cancel();
+  textoRespaldoVoz='';JarvisNativo.reproduciendoVoz(false);
   JarvisNativo.pausarEscucha(true);
   tasa=ctx.sampleRate;fuenteMic=ctx.createMediaStreamSource(flujo);
   proc=ctx.createScriptProcessor(4096,1,1);trozos=[];hablo=false;silencio=0;

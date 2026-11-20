@@ -71,6 +71,7 @@ public class MainActivity extends Activity {
     @Override
     protected void onCreate(Bundle guardado) {
         super.onCreate(guardado);
+        Escucha.prepararVozLocal(this);
         getWindow().setStatusBarColor(Color.parseColor("#0B0F1A"));
         getWindow().setNavigationBarColor(Color.parseColor("#0B0F1A"));
 
@@ -182,6 +183,7 @@ public class MainActivity extends Activity {
     protected void onDestroy() {
         Microfono.obtener(this).soltar("pantalla");
         Escucha.pausar(false);
+        Escucha.vozPantalla(false);
         Escucha.oyente = null;
         hilos.shutdownNow();
         if (voz != null) voz.shutdown();
@@ -501,7 +503,12 @@ public class MainActivity extends Activity {
 
         @JavascriptInterface
         public boolean vozRapida() {
-            return Llamadas.preferencias(MainActivity.this).getBoolean(Escucha.VOZ_RAPIDA, true);
+            return Llamadas.preferencias(MainActivity.this).getBoolean(Escucha.VOZ_RAPIDA, false);
+        }
+
+        @JavascriptInterface
+        public void reproduciendoVoz(boolean si) {
+            Escucha.vozPantalla(si);
         }
 
         @JavascriptInterface
