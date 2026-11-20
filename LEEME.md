@@ -8,6 +8,16 @@ App para hablar con Elena desde el teléfono, por NetBird.
 - La dirección (por defecto `https://100.124.180.1:8766`, la de NetBird) y la clave se configuran en ⚙ dentro de la app.
 
 ## Cómo se arma
+El micrófono se adapta al conectar o desconectar audífonos con micrófono (Bluetooth, cable o USB).
+En Android 12 o posterior, permite **Dispositivos cercanos** para usar Bluetooth. Si se deniega,
+puedes volver a tocar el botón para usar la entrada disponible sin ese permiso.
+La escucha permanente libera la entrada mientras grabas con el botón. Si desconectas los audífonos
+durante una grabación manual, se descarta esa frase y se pide repetirla para no enviar audio cortado.
+
+Prueba en un teléfono: iniciar la escucha sin audífonos, conectarlos, decir «Elena», grabar con el botón,
+desconectarlos durante una frase y repetir; comprobar también permisos denegados y una llamada entrante.
+Prueba automática de la interfaz: `node tests/microfono-web.test.cjs`.
+
 GitHub la arma sola con cada cambio (`.github/workflows/apk.yml`). El resultado queda en la pestaña
 **Actions**, como archivo `Elena-apk`.
 

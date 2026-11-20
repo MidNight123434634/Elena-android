@@ -65,6 +65,7 @@ public class MainActivity extends Activity {
     private TextToSpeech voz;
     private boolean vozLista = false;
     private Actualizador actualizador;
+    private boolean bluetoothSolicitado;
 
     @SuppressLint({"SetJavaScriptEnabled", "AddJavascriptInterface"})
     @Override
@@ -179,6 +180,8 @@ public class MainActivity extends Activity {
 
     @Override
     protected void onDestroy() {
+        Microfono.obtener(this).soltar("pantalla");
+        Escucha.pausar(false);
         Escucha.oyente = null;
         hilos.shutdownNow();
         if (voz != null) voz.shutdown();
@@ -299,6 +302,10 @@ public class MainActivity extends Activity {
                 faltan.add(Manifest.permission.RECORD_AUDIO);
             if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED)
                 faltan.add(Manifest.permission.POST_NOTIFICATIONS);
+            if (Build.VERSION.SDK_INT >= 31 && !bluetoothSolicitado && checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
+                bluetoothSolicitado = true;
+                faltan.add(Manifest.permission.BLUETOOTH_CONNECT);
+            }
             if (!faltan.isEmpty()) {
                 principal.post(() -> requestPermissions(faltan.toArray(new String[0]), 23));
                 return "Dame permiso para usar el micrófono (y mostrar la notificación) y vuelve a activar la opción.";
@@ -320,6 +327,29 @@ public class MainActivity extends Activity {
         @JavascriptInterface
         public void pausarEscucha(boolean si) {
             Escucha.pausar(si);
+            if (!si) Microfono.obtener(MainActivity.this).soltar("pantalla");
+        }
+
+        @JavascriptInterface
+        public String prepararMicrofono() {
+            if (Build.VERSION.SDK_INT >= 31 && !bluetoothSolicitado && checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
+                bluetoothSolicitado = true;
+                principal.post(() -> requestPermissions(new String[]{Manifest.permission.BLUETOOTH_CONNECT}, 24));
+                return "Permite Dispositivos cercanos para usar el micrófono Bluetooth y vuelve a tocar el micrófono.";
+            }
+            Escucha.pausar(true);
+            if (!Escucha.esperarMicrofonoLibre()) {
+                Escucha.pausar(false);
+                return "La escucha está terminando una respuesta. Intenta de nuevo en unos segundos.";
+            }
+            Microfono.obtener(MainActivity.this).adquirir("pantalla");
+            Microfono.obtener(MainActivity.this).esperarRuta();
+            return "";
+        }
+
+        @JavascriptInterface
+        public int revisionMicrofono() {
+            return Microfono.obtener(MainActivity.this).revision();
         }
 
         @JavascriptInterface

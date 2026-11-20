@@ -25,6 +25,7 @@ jobs:
           rm -rf app/src/main/assets/model-es
           mv vosk-model-small-es-0.42 app/src/main/assets/model-es
           echo "vosk-small-es-0.42" > app/src/main/assets/model-es/uuid
+      - run: node tests/microfono-web.test.cjs
       - run: gradle :app:assembleDebug --no-daemon -PversionCode=${{ github.run_number }}
       - run: cp app/build/outputs/apk/debug/app-debug.apk Jarvis.apk
       - uses: actions/upload-artifact@v4

@@ -302,16 +302,29 @@ texto.addEventListener('keydown',e=>{if(e.key==='Enter')enviar();});
 
 // ------------------------------------------------------------ micrófono (WAV 16 kHz, como entiende el PC)
 let fuenteMic=null,proc=null,flujo=null,trozos=[],tasa=48000,grabando=false,limite=null,hablo=false,silencio=0;
+let preparandoMic=false,revisionMic=0,vigilarMic=null,ruidoMic=.002;
 function sinMicrofono(){
   if(!window.isSecureContext){
     anadir('aviso','El micrófono no está disponible en esta pantalla.');
   }else{anadir('aviso','Este navegador no permite grabar audio. Usa Chrome.');}
 }
 async function empezar(){
+  if(preparandoMic||grabando)return;
   const ctx=audio();
   if(!navigator.mediaDevices||!ctx){sinMicrofono();return;}
-  try{flujo=await navigator.mediaDevices.getUserMedia({audio:{channelCount:1,echoCancellation:true,noiseSuppression:true}});}
-  catch(e){anadir('aviso','No me diste permiso para usar el micrófono. Revísalo en los permisos del sitio.');return;}
+  preparandoMic=true;boton.disabled=true;
+  poner('escuchando','Preparando el micrófono…');
+  try{
+    const aviso=JarvisNativo.prepararMicrofono();
+    if(aviso)throw new Error(aviso);
+    revisionMic=JarvisNativo.revisionMicrofono();
+    flujo=await navigator.mediaDevices.getUserMedia({audio:{channelCount:1,echoCancellation:true,noiseSuppression:true,autoGainControl:true}});
+  }catch(e){
+    JarvisNativo.pausarEscucha(false);preparandoMic=false;boton.disabled=false;
+    anadir('aviso',e.message||'No pude abrir el micrófono. Revisa los permisos de Elena.');
+    poner('esperando','Toca el micrófono y habla');return;
+  }
+  preparandoMic=false;boton.disabled=false;ruidoMic=.002;
   reproductor.pause();cola=[];if('speechSynthesis' in window)speechSynthesis.cancel();
   JarvisNativo.pausarEscucha(true);
   tasa=ctx.sampleRate;fuenteMic=ctx.createMediaStreamSource(flujo);
@@ -323,14 +336,22 @@ async function empezar(){
     let s=0;for(let i=0;i<d.length;i+=4)s+=d[i]*d[i];
     const rms=Math.sqrt(s/(d.length/4));nivelMic=Math.min(1.2,rms*9);
     if(auto.checked){
-      if(rms>.02){hablo=true;silencio=0;}
+      const umbral=Math.max(.002,ruidoMic*2.8);
+      if(rms>umbral){hablo=true;silencio=0;}
       else if(hablo){silencio+=d.length/tasa;if(silencio>1.4)setTimeout(terminar,0);}
+      else ruidoMic=.9*ruidoMic+.1*rms;
     }
   };
   fuenteMic.connect(proc);proc.connect(ganancia);ganancia.connect(ctx.destination);
   grabando=true;boton.classList.add('grabando');boton.textContent='■';
   poner('escuchando',auto.checked?'Te escucho… (envío cuando te calles)':'Te escucho… toca para enviar');
   limite=setTimeout(terminar,30000);
+  vigilarMic=setInterval(()=>{
+    if(grabando&&JarvisNativo.revisionMicrofono()!==revisionMic){
+      cancelarMicrofono();anadir('aviso','Cambiaste los audífonos. Vuelve a tocar el micrófono para repetir la frase con la nueva entrada.');
+    }
+  },500);
+  flujo.getAudioTracks().forEach(t=>t.onended=()=>{if(grabando){cancelarMicrofono();anadir('aviso','Se desconectó el micrófono. Toca para volver a grabar.');}});
 }
 function aWav(partes,origen){
   const largo=partes.reduce((n,t)=>n+t.length,0),todo=new Float32Array(largo);
@@ -351,6 +372,7 @@ function aWav(partes,origen){
 }
 function terminar(){
   clearTimeout(limite);if(!grabando)return;
+  clearInterval(vigilarMic);
   grabando=false;nivelMic=0;
   try{proc.disconnect();fuenteMic.disconnect();}catch(e){}
   flujo.getTracks().forEach(t=>t.stop());
@@ -358,6 +380,15 @@ function terminar(){
   boton.classList.remove('grabando');boton.textContent='🎤';
   mandarAudio(aWav(trozos,tasa));
 }
+function cancelarMicrofono(){
+  clearTimeout(limite);clearInterval(vigilarMic);grabando=false;nivelMic=0;
+  try{proc.disconnect();fuenteMic.disconnect();}catch(e){}
+  if(flujo)flujo.getTracks().forEach(t=>t.stop());
+  JarvisNativo.pausarEscucha(false);trozos=[];
+  boton.classList.remove('grabando');boton.textContent='🎤';
+  poner('esperando','Toca el micrófono y habla');
+}
+document.addEventListener('visibilitychange',()=>{if(document.hidden&&grabando)cancelarMicrofono();});
 async function mandarAudio(blob){
   if(blob.size<1500){anadir('aviso','No alcancé a escuchar nada.');poner('esperando','Toca el micrófono y habla');return;}
   boton.disabled=true;poner('pensando','Pensando…');

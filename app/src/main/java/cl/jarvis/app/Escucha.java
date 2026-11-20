@@ -62,6 +62,9 @@ public class Escucha extends Service {
     static volatile Oyente oyente;
     private static volatile boolean pausada = false;
     private static volatile boolean activa = false;
+    private static volatile boolean microfonoLibre = true;
+    private Microfono ruta;
+    private int revisionRuta;
 
     private Thread hilo;
     private volatile boolean seguir = true;
@@ -73,6 +76,12 @@ public class Escucha extends Service {
 
     /** Mientras se usa el botón del micrófono de la app, la escucha se pausa (el micrófono es uno solo). */
     static void pausar(boolean si) { pausada = si; }
+    static boolean esperarMicrofonoLibre() {
+        long hasta = android.os.SystemClock.elapsedRealtime() + 2500;
+        while (activa && !microfonoLibre && android.os.SystemClock.elapsedRealtime() < hasta)
+            android.os.SystemClock.sleep(25);
+        return !activa || microfonoLibre;
+    }
 
     static void iniciar(Context c) {
         Intent i = new Intent(c, Escucha.class);
@@ -100,6 +109,7 @@ public class Escucha extends Service {
             });
             avisar("aviso", "Preparando la escucha…");
             StorageService.unpack(this, "model-es", "modelo_elena", m -> {
+                if (!seguir) { m.close(); return; }
                 modelo = m;
                 hilo = new Thread(this::bucle, "escucha-elena");
                 hilo.start();
@@ -118,7 +128,6 @@ public class Escucha extends Service {
         activa = false;
         if (hilo != null) hilo.interrupt();
         if (voz != null) voz.shutdown();
-        if (modelo != null) modelo.close();
         super.onDestroy();
     }
 
@@ -134,25 +143,41 @@ public class Escucha extends Service {
     private long inicioReciente = 0;                  // en muestras desde que se creó el reconocedor
 
     private AudioRecord abrirMicrofono() {
+        if (!seguir || pausada) return null;
+        ruta = Microfono.obtener(this);
+        ruta.adquirir("servicio");
+        ruta.esperarRuta();
+        revisionRuta = ruta.revision();
+        ruido = 80;
         int minimo = AudioRecord.getMinBufferSize(TASA, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT);
+        AudioRecord mic = null;
         try {
-            AudioRecord mic = new AudioRecord(MediaRecorder.AudioSource.VOICE_RECOGNITION, TASA, AudioFormat.CHANNEL_IN_MONO,
+            mic = new AudioRecord(MediaRecorder.AudioSource.VOICE_RECOGNITION, TASA, AudioFormat.CHANNEL_IN_MONO,
                     AudioFormat.ENCODING_PCM_16BIT, Math.max(minimo, TASA * 4));  // 2 segundos de margen
-            if (mic.getState() != AudioRecord.STATE_INITIALIZED) { mic.release(); return null; }
+            if (mic.getState() != AudioRecord.STATE_INITIALIZED) { cerrar(mic); return null; }
+            ruta.preferir(mic);
             mic.startRecording();
+            microfonoLibre = false;
+            android.media.AudioDeviceInfo entrada = mic.getRoutedDevice();
+            avisar("aviso", "Micrófono: " + (entrada == null ? "selección automática de Android" : entrada.getProductName()));
             return mic;
         } catch (SecurityException e) {
+            cerrar(mic);
             avisar("aviso", "Falta el permiso del micrófono.");
             return null;
         } catch (Exception e) {
+            cerrar(mic);
             return null;
         }
     }
 
-    private static void cerrar(AudioRecord mic) {
-        if (mic == null) return;
-        try { mic.stop(); } catch (Exception ignorado) { }
-        mic.release();
+    private void cerrar(AudioRecord mic) {
+        if (mic != null) {
+            try { mic.stop(); } catch (Exception ignorado) { }
+            mic.release();
+        }
+        if (ruta != null) ruta.soltar("servicio");
+        microfonoLibre = true;
     }
 
     private Recognizer nuevoDespertador() throws java.io.IOException {
@@ -165,7 +190,6 @@ public class Escucha extends Service {
 
     private void bucle() {
         AudioRecord mic = abrirMicrofono();
-        if (mic == null) { stopSelf(); return; }
         short[] trozo = new short[TROZO];
         Recognizer despertador = null;
         boolean enLlamada = false, reiniciar = false;
@@ -173,6 +197,15 @@ public class Escucha extends Service {
         try {
             despertador = nuevoDespertador();
             while (seguir) {
+                if (pausada) {
+                    if (mic != null) { cerrar(mic); mic = null; reiniciar = true; }
+                    dormir(50);
+                    continue;
+                }
+                if (mic != null && ruta.revision() != revisionRuta) {
+                    cerrar(mic); mic = null; reiniciar = true;
+                    avisar("aviso", "Cambió el dispositivo de audio. Ajustando el micrófono…");
+                }
                 // en llamada: suelta el micrófono y no habla hasta que corte
                 if (Acciones.enLlamada(this)) {
                     if (!enLlamada) { enLlamada = true; cerrar(mic); mic = null; mostrarNotificacion("En llamada: no escucho ni hablo"); }
@@ -187,7 +220,7 @@ public class Escucha extends Service {
                     mostrarNotificacion("Di «Elena» para hablarme");
                 }
                 int n = mic.read(trozo, 0, trozo.length);
-                if (n <= 0) continue;
+                if (n <= 0) { cerrar(mic); mic = null; dormir(300); continue; }
                 if (pausada) { reiniciar = true; continue; }   // la pantalla está usando el micrófono
                 if (reiniciar) {
                     despertador.close();
@@ -223,6 +256,8 @@ public class Escucha extends Service {
         } finally {
             if (despertador != null) despertador.close();
             cerrar(mic);
+            if (modelo != null) modelo.close();
+            activa = false;
         }
     }
 
@@ -239,10 +274,10 @@ public class Escucha extends Service {
     private void medirRuido(double rms) {
         if (rms < ruido * 1.5) ruido = ruido * 0.95 + rms * 0.05;   // silencio o ruido de fondo
         else ruido = ruido * 1.003;                                  // sube despacio si hay ruido constante
-        ruido = Math.max(80, Math.min(4000, ruido));
+        ruido = Math.max(15, Math.min(4000, ruido));
     }
 
-    private double umbralVoz() { return Math.max(ruido * 2.5, 450); }
+    private double umbralVoz() { return Math.max(ruido * 2.5, 60); }
 
     private void guardarReciente(short[] datos, int n) {
         if (largoReciente + n > MAXIMO_RECIENTE) {   // frase demasiado larga: se descarta lo más viejo
@@ -369,8 +404,9 @@ public class Escucha extends Service {
         boolean hablo = antes != null;
         double finSilencio = antes != null ? espera : 1.0;
         while (seguir && tiempo < maximo && mic != null) {
+            if (pausada || Acciones.enLlamada(this) || ruta.revision() != revisionRuta) return null;
             int n = mic.read(trozo, 0, trozo.length);
-            if (n <= 0) continue;
+            if (n <= 0) return null;
             double nivel = rms(trozo, n);
             bytes.clear();
             for (int i = 0; i < n; i++) bytes.putShort(trozo[i]);
