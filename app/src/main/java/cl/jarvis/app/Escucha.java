@@ -342,8 +342,17 @@ public class Escucha extends Service {
             avisar("estado", "escuchando");
             orden = grabarOrden(mic, trozo, aBytes(resto), 0.6, 12);
         } else {
-            // solo dijo «Elena»: pitido y escucha al tiro (sin hablar encima de ti)
-            pitido(ToneGenerator.TONE_PROP_BEEP);
+            // Saludo local: no espera al PC y no graba su propia respuesta.
+            mic.stop();
+            try {
+                avisar("estado", "hablando");
+                avisar("jarvis", "Aquí estoy.");
+                saludar();
+            } finally {
+                if (seguir && !pausada && !vozPantalla && !Acciones.enLlamada(this))
+                    mic.startRecording();
+            }
+            if (!seguir || pausada || vozPantalla || Acciones.enLlamada(this)) return;
             mostrarNotificacion("Te escucho…");
             avisar("estado", "escuchando");
             orden = grabarOrden(mic, trozo, null, 6, 12);
@@ -492,6 +501,24 @@ public class Escucha extends Service {
             finally { reproductor.release(); }
         }
         return sono;
+    }
+
+    private void saludar() {
+        MediaPlayer saludo = null;
+        boolean sono = false;
+        try {
+            saludo = MediaPlayer.create(this, R.raw.aqui_estoy);
+            if (saludo != null) {
+                CountDownLatch fin = new CountDownLatch(1);
+                java.util.concurrent.atomic.AtomicBoolean correcto = new java.util.concurrent.atomic.AtomicBoolean(true);
+                saludo.setOnCompletionListener(m -> fin.countDown());
+                saludo.setOnErrorListener((m, x, y) -> { correcto.set(false); fin.countDown(); return true; });
+                saludo.start();
+                sono = fin.await(5, TimeUnit.SECONDS) && correcto.get();
+            }
+        } catch (Exception ignorado) { }
+        finally { if (saludo != null) saludo.release(); }
+        if (!sono) decirYEsperar("Aquí estoy.");
     }
 
     private void decirYEsperar(String texto) {

@@ -32,3 +32,7 @@ Las acciones locales y las notificaciones conservan la voz del teléfono.
 3. Abre Elena, toca ⚙ y escribe la clave (está en `clave_movil.txt` en el PC).
 
 El identificador Android `cl.jarvis.app`, las claves locales `jarvis_*` y las rutas/cabeceras `X-Jarvis` se conservan para que las instalaciones existentes mantengan sus datos y sigan comunicándose con el servidor del PC.
+# Saludo al llamarla
+
+Al decir solo «Elena», responde «Aquí estoy» con un audio local incluido en la app y luego escucha tu orden. No necesita conexión al PC para el saludo. El micrófono deja de grabar durante el saludo para no enviar la voz de Elena como si fuera tu orden. Si dices «Elena, abre WhatsApp» de corrido, atiende la orden directamente.
+
